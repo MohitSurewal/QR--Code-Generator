@@ -37,16 +37,3 @@ def download():
 
 if __name__ == "__main__":
     app.run(debug=True)
-# try:
-#     url = input("Enter the url: ")
-#     filename = input("Enter the filename: ")
-#     if not filename.endswith('.png'):
-#         filename = filename + '.png'
-        
-        
-#     img = qrcode.make(url)  
-#     img.save(filename)
-#     print(f"QR code saved as {filename}")
-    
-# except Exception as e:
-#     print(f"An error occurred: {e}")
