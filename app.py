@@ -100,7 +100,7 @@ def generate_qr():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-       data = f"{request.host_url}uploads/{filename}"
+        data = f"{request.host_url}uploads/{filename}"
 
     elif text:
         data = text
