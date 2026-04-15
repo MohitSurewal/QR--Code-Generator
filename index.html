@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card">
+    <h2>QR Code Generator</h2>
+
+    <form action="/generate" method="POST" enctype="multipart/form-data">
+        
+        <input type="text" name="text" placeholder="Enter link or text"><br><br>
+        <input type="file" name="file"><br><br>
+
+        <button type="submit">Generate QR</button>
+    </form>
+
+    {% if qr_image %}
+    <div class="qr-box">
+        <h3>Preview</h3>
+        <img src="{{ url_for('static', filename='qr_codes/' + qr_image) }}" width="200">
+        <p>{{ data }}</p>
+
+        <a href="{{ url_for('static', filename='qr_codes/' + qr_image) }}" download>
+            <button>Download QR</button>
+        </a>
+    </div>
+    {% endif %}
+<br><p class="text-center"></p>© 2026 SUREWAL.TECH. All rights reserved.</p>
+</div>
+
+{% endblock %}

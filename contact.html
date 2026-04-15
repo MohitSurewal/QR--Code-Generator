@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="card contact-card">
+    <h2>📞 Contact Us</h2>
+
+    <form class="contact-form">
+
+        <div class="form-row">
+            <input type="text" placeholder="Your Name" required>
+            <input type="email" placeholder="Your Email" required>
+        </div>
+
+        <textarea placeholder="Your Message" rows="5" required></textarea>
+
+        <div class="captcha-row">
+            <span>Solve: <b>{{ num1 }} + {{ num2 }}</b></span>
+            <input type="text" placeholder="Answer" required>
+        </div>
+
+        <button type="submit">Send Message</button>
+
+    </form>
+</div>
+
+{% endblock %}
