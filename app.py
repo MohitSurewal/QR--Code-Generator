@@ -8,8 +8,6 @@ from flask import session
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  
 
-import os
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
@@ -49,7 +47,7 @@ def contact():
         user_answer = request.form.get("captcha")
         real_answer = session.get("captcha_answer")
 
-        print("USER:", user_answer, "REAL:", real_answer)  \
+        print("USER:", user_answer, "REAL:", real_answer)  
 
        
         if not real_answer or str(user_answer) != str(real_answer):
@@ -100,7 +98,7 @@ def generate_qr():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        data = f"{request.host_url}uploads/{filename}"
+        data = request.host_url + "uploads/" + filename
 
     elif text:
         data = text
@@ -127,11 +125,3 @@ def uploaded_file(filename):
 if __name__ == "__main__":
     app.run()
     
-try:
-    from flask import send_from_directory
-
-    @app.route('/static/<path:filename>')
-    def custom_static(filename):
-        return send_from_directory('static', filename)
-except ImportError:
-    pass
