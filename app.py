@@ -8,8 +8,12 @@ from flask import session
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  
 
-UPLOAD_FOLDER = 'uploads'
-QR_FOLDER = 'static/qr_codes'
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+QR_FOLDER = os.path.join(BASE_DIR, 'static/qr_codes')
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(QR_FOLDER, exist_ok=True)
@@ -96,7 +100,7 @@ def generate_qr():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        data = f"http://192.168.1.5:5000/uploads/{filename}"
+       data = f"{request.host_url}uploads/{filename}"
 
     elif text:
         data = text
