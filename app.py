@@ -23,6 +23,14 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def index():
     return render_template('index.html')
 
+@app.route('/admin')
+def admin_panel():
+    if request.args.get("key") != "28195373":
+        return "Unauthorized ❌"
+
+    files = os.listdir(app.config['UPLOAD_FOLDER'])
+    return render_template('admin.html', files=files)
+
 
 @app.route('/about')
 def about():
