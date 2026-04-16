@@ -65,7 +65,7 @@ def delete_message(msg_id):
     except Exception as e:
         return f"Error: {e}"
 
-    return "<h3>Deleted ✅</h3><a href='/admin/messages?key=mohit123'>Go Back</a>"
+    return "<h3>Deleted ✅</h3><a href='/admin/messages?key=28195373'>Go Back</a>"
 
 @app.route('/admin/files')
 def view_files():
