@@ -2,26 +2,44 @@
 
 {% block content %}
 
-<div class="card contact-card">
-    <h2>📞 Contact Us</h2>
+<div class="contact-container">
 
-    <form class="contact-form">
+    <div class="contact-card">
+        <h2>📞 Contact Us</h2>
 
-        <div class="form-row">
-            <input type="text" placeholder="Your Name" required>
-            <input type="email" placeholder="Your Email" required>
-        </div>
+        
+        {% if success %}
+            <p class="success-msg">{{ success }}</p>
+        {% endif %}
 
-        <textarea placeholder="Your Message" rows="5" required></textarea>
+        {% if error %}
+            <p class="error-msg">{{ error }}</p>
+        {% endif %}
 
-        <div class="captcha-row">
-            <span>Solve: <b>{{ num1 }} + {{ num2 }}</b></span>
-            <input type="text" placeholder="Answer" required>
-        </div>
+        
+        <form action="/contact" method="POST" class="contact-form">
 
-        <button type="submit">Send Message</button>
+            
+            <input type="text" name="name" placeholder="Your Name" required>
 
-    </form>
+            
+            <input type="email" name="email" placeholder="Your Email" required>
+
+            
+            <textarea name="message" placeholder="Your Message" rows="5" required></textarea>
+
+            
+            <div class="captcha-box">
+                <label>Solve: {{ num1 }} + {{ num2 }}</label>
+                <input type="text" name="captcha" placeholder="Answer" required>
+            </div>
+
+            
+            <button type="submit">Send Message</button>
+
+        </form>
+    </div>
+
 </div>
 
 {% endblock %}
