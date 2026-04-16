@@ -49,6 +49,24 @@ def view_messages():
 
     return render_template("messages.html", messages=messages)
 
+@app.route('/delete/<int:msg_id>')
+def delete_message(msg_id):
+    try:
+        file_path = os.path.join(BASE_DIR, "data.txt")
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            for i, line in enumerate(lines):
+                if i != msg_id:
+                    f.write(line)
+
+    except Exception as e:
+        return f"Error: {e}"
+
+    return "<h3>Deleted ✅</h3><a href='/admin/messages?key=mohit123'>Go Back</a>"
+
 @app.route('/admin/files')
 def view_files():
     if request.args.get("key") != "28195373":
