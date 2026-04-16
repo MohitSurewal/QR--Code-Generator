@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="admin-card">
+    <h2>📩 Admin Panel - Messages</h2>
+
+    {% if messages %}
+    <table class="admin-table">
+        <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Message</th>
+            <th>Action</th>
+        </tr>
+
+        {% for msg in messages %}
+        <tr>
+            <td>{{ msg.name }}</td>
+            <td>{{ msg.email }}</td>
+            <td>{{ msg.message }}</td>
+            <td>
+                <a href="/delete/{{ msg.id }}">
+                    <button class="delete-btn">Delete</button>
+                </a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    {% else %}
+        <p>No messages yet</p>
+    {% endif %}
+</div>
+
+{% endblock %}
