@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="admin-card">
+    <h2>📁 Uploaded Files</h2>
+
+    {% if files %}
+    <div class="file-grid">
+        {% for file in files %}
+        <div class="file-box">
+            <p>{{ file }}</p>
+
+            <a href="{{ url_for('uploaded_file', filename=file) }}" target="_blank">
+                <button class="view-btn">View</button>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+        <p>No files uploaded</p>
+    {% endif %}
+</div>
+
+{% endblock %}
