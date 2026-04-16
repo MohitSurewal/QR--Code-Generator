@@ -31,7 +31,8 @@ def view_messages():
     messages = []
 
     try:
-        with open("data.txt", "r", encoding="utf-8") as f:
+        file_path = os.path.join(BASE_DIR, "data.txt")
+        with open(file_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
             for i, line in enumerate(lines):
@@ -103,8 +104,9 @@ def contact():
 
         
         try:
-            with open("data.txt", "a", encoding="utf-8") as f:
-                f.write(f"{name}|{email}|{message}\n")
+            file_path = os.path.join(BASE_DIR, "data.txt")
+            with open(file_path, "a", encoding="utf-8") as f:
+                 f.write(f"{name}|{email}|{message}\n")
         except Exception as e:
             return f"Error saving data: {e}"
 
