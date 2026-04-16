@@ -81,15 +81,12 @@ def services():
 @app.route("/contact", methods=["GET", "POST"])
 def contact():
     if request.method == "POST":
-        print("POST HIT")  
 
-        name = request.form.get("name")
-        email = request.form.get("email")
-        message = request.form.get("message")
+        name = request.form.get("name") or ""
+        email = request.form.get("email") or ""
+        message = request.form.get("message") or ""
         user_answer = request.form.get("captcha")
         real_answer = session.get("captcha_answer")
-
-        print("USER:", user_answer, "REAL:", real_answer)  
 
        
         if not real_answer or str(user_answer) != str(real_answer):
@@ -104,8 +101,12 @@ def contact():
                 num2=num2
             )
 
-    with open("data.txt", "a", encoding="utf-8") as f:
-        f.write(f"{name}|{email}|{message}\n")
+        
+        try:
+            with open("data.txt", "a", encoding="utf-8") as f:
+                f.write(f"{name}|{email}|{message}\n")
+        except Exception as e:
+            return f"Error saving data: {e}"
 
         
         num1 = random.randint(1, 10)
