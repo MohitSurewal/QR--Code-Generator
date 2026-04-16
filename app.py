@@ -104,9 +104,8 @@ def contact():
                 num2=num2
             )
 
-        
-        with open("data.txt", "a", encoding="utf-8") as f:
-    f.write(f"{name}|{email}|{message}\n")
+    with open("data.txt", "a", encoding="utf-8") as f:
+        f.write(f"{name}|{email}|{message}\n")
 
         
         num1 = random.randint(1, 10)
