@@ -23,13 +23,41 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def index():
     return render_template('index.html')
 
-@app.route('/admin')
-def admin_panel():
-    if request.args.get("key") != "28195373":
-        return "Unauthorized ❌"
+@app.route('/admin/messages')
+def view_messages():
+    messages = []
 
-    files = os.listdir(app.config['UPLOAD_FOLDER'])
-    return render_template('admin.html', files=files)
+    try:
+        with open("data.txt", "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+            for i, line in enumerate(lines):
+                parts = line.strip().split("|")
+                if len(parts) == 3:
+                    messages.append({
+                        "id": i,
+                        "name": parts[0],
+                        "email": parts[1],
+                        "message": parts[2]
+                    })
+    except:
+        pass
+
+    return render_template("messages.html", messages=messages)
+
+@app.route('/admin/files')
+def view_files():
+    files = []
+
+    try:
+        file_list = os.listdir(app.config['UPLOAD_FOLDER'])
+
+        for f in file_list:
+            files.append(f)
+    except:
+        pass
+
+    return render_template("files.html", files=files)
 
 
 @app.route('/about')
@@ -72,7 +100,7 @@ def contact():
 
         
         with open("data.txt", "a", encoding="utf-8") as f:
-            f.write(f"\nName: {name}\nEmail: {email}\nMessage: {message}\n")
+    f.write(f"{name}|{email}|{message}\n")
 
         
         num1 = random.randint(1, 10)
