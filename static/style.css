@@ -1,4 +1,4 @@
-/* RESET */
+
 * {
     margin: 0;
     padding: 0;
@@ -16,7 +16,7 @@ body {
     transition: opacity 0.5s ease;
 }
 
-/* NAVBAR */
+
 .navbar {
     display: flex;
     justify-content: center;
@@ -34,7 +34,7 @@ body {
     position: relative;
 }
 
-/* Hover underline animation */
+
 .navbar a::after {
     content: "";
     position: absolute;
@@ -50,7 +50,7 @@ body {
     width: 100%;
 }
 
-/* CONTAINER */
+
 .container {
     width: 100%;
     max-width: 900px;
@@ -59,7 +59,7 @@ body {
     animation: fadeIn 1s ease;
 }
 
-/* CARD */
+
 .card {
     background: rgba(255,255,255,0.05);
     padding: 40px;
@@ -70,7 +70,7 @@ body {
     animation: popUp 0.6s ease;
 }
 
-/* INPUTS */
+
 input[type="text"], input[type="file"] {
     width: 80%;
     padding: 12px;
@@ -80,7 +80,7 @@ input[type="text"], input[type="file"] {
     outline: none;
 }
 
-/* BUTTON */
+
 button {
     padding: 12px 25px;
     background: linear-gradient(45deg, #00f2fe, #4facfe);
@@ -97,7 +97,7 @@ button:hover {
     box-shadow: 0 0 15px #00f2fe;
 }
 
-/* QR PREVIEW */
+
 .qr-box {
     margin-top: 30px;
     animation: fadeIn 1s ease;
@@ -113,7 +113,7 @@ button:hover {
     transform: scale(1.1) rotate(3deg);
 }
 
-/* LIST STYLE */
+
 ul {
     list-style: none;
 }
@@ -131,7 +131,7 @@ ul li:hover {
     background: rgba(255,255,255,0.2);
 }
 
-/* ANIMATIONS */
+
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -164,13 +164,13 @@ ul li:hover {
         opacity: 1;
     }
 }
-/* CONTACT FORM FIX */
+
 .contact-card {
     max-width: 700px;
     margin: auto;
 }
 
-/* FORM */
+
 .contact-form {
     display: flex;
     flex-direction: column;
@@ -178,7 +178,7 @@ ul li:hover {
     margin-top: 20px;
 }
 
-/* ROW (Name + Email side by side) */
+
 .form-row {
     display: flex;
     gap: 15px;
@@ -188,7 +188,7 @@ ul li:hover {
     flex: 1;
 }
 
-/* TEXTAREA */
+
 textarea {
     width: 100%;
     padding: 12px;
@@ -198,7 +198,7 @@ textarea {
     resize: none;
 }
 
-/* CAPTCHA ROW */
+
 .captcha-row {
     display: flex;
     align-items: center;
@@ -210,7 +210,7 @@ textarea {
     width: 120px;
 }
 
-/* RESPONSIVE FIX */
+
 @media (max-width: 600px) {
     .form-row {
         flex-direction: column;
@@ -227,7 +227,7 @@ ul li {
     background: rgba(255,255,255,0.1);
     border-radius: 10px;
 }
-/* ADMIN PANEL CARD */
+
 .admin-card {
     background: rgba(255,255,255,0.05);
     padding: 30px;
@@ -237,7 +237,7 @@ ul li {
     animation: fadeIn 0.8s ease;
 }
 
-/* TABLE */
+
 .admin-table {
     width: 100%;
     border-collapse: collapse;
@@ -259,7 +259,7 @@ ul li {
     background: rgba(255,255,255,0.08);
 }
 
-/* BUTTONS */
+
 .delete-btn {
     background: red;
     color: white;
@@ -275,7 +275,7 @@ ul li {
     transform: scale(1.1);
 }
 
-/* FILE GRID */
+
 .file-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -296,7 +296,7 @@ ul li {
     background: rgba(255,255,255,0.2);
 }
 
-/* VIEW BUTTON */
+
 .view-btn {
     background: #00f2fe;
     border: none;
