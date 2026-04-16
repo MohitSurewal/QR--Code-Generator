@@ -25,6 +25,9 @@ def index():
 
 @app.route('/admin/messages')
 def view_messages():
+    if request.args.get("key") != "28195373":
+        return "Unauthorized ❌"
+
     messages = []
 
     try:
@@ -47,6 +50,9 @@ def view_messages():
 
 @app.route('/admin/files')
 def view_files():
+    if request.args.get("key") != "28195373":
+        return "Unauthorized ❌"
+
     files = []
 
     try:
