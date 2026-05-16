@@ -160,41 +160,65 @@ def contact():
 
 @app.route('/generate', methods=['POST'])
 def generate_qr():
+
     text = request.form.get('text')
+
     file = request.files.get('file')
 
     data = ""
 
     if file and file.filename != "":
-    
+
         filename = file.filename.lower()
-    
+
+      
+        if filename.endswith(".pdf"):
+
+            result = cloudinary.uploader.upload(
+                file,
+                resource_type="image"
+            )
+
         
-    if filename.endswith(".pdf"):
-    
-        result = cloudinary.uploader.upload( file, resource_type="image" )
-       
-    elif filename.endswith((".mp4", ".mov", ".avi")):
-    
-         result = cloudinary.uploader.upload(file, resource_type="video" )  
+        elif filename.endswith((".mp4", ".mov", ".avi")):
+
+            result = cloudinary.uploader.upload(
+                file,
+                resource_type="video"
+            )
+
         
-    else:
-        result = cloudinary.uploader.upload(file, resource_type="image" )
-    
-    data = result['secure_url']
-        
+        else:
+
+            result = cloudinary.uploader.upload(
+                file,
+                resource_type="image"
+            )
+
+        data = result['secure_url']
+
     elif text:
+
         data = text
+
     else:
+
         return "No input provided"
 
     qr = qrcode.make(data)
 
-    qr_filename = "qr.png"
-    qr_path = os.path.join(QR_FOLDER, qr_filename)
+    qr_path = os.path.join(
+        QR_FOLDER,
+        "qr.png"
+    )
+
     qr.save(qr_path)
 
-    return render_template('index.html', qr_image=qr_filename, data=data)
+    return render_template(
+        'index.html',
+        qr_image="qr.png",
+        data=data
+    )
 
 
 
