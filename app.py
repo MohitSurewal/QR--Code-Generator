@@ -170,7 +170,7 @@ def generate_qr():
         filename = file.filename.lower()
     
         # PDF
-        if filename.endswith(".pdf"):
+     if filename.endswith(".pdf"):
     
             result = cloudinary.uploader.upload(
                 file,
@@ -178,7 +178,7 @@ def generate_qr():
             )
     
         # Video
-        elif filename.endswith((".mp4", ".mov", ".avi")):
+     elif filename.endswith((".mp4", ".mov", ".avi")):
     
             result = cloudinary.uploader.upload(
                 file,
@@ -186,7 +186,7 @@ def generate_qr():
             )
     
         # Images
-        else:
+     else:
     
             result = cloudinary.uploader.upload(
                 file,
