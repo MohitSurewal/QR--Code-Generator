@@ -181,7 +181,7 @@ def generate_qr():
     else:
         result = cloudinary.uploader.upload(file, resource_type="image" )
     
-        data = result['secure_url']
+    data = result['secure_url']
         
     elif text:
         data = text
