@@ -178,7 +178,9 @@ def generate_qr():
                 file,
                 resource_type="image"
             )
+            pdf_url = result['secure_url']
 
+            data = f"https://docs.google.com/gview?embedded=1&url={pdf_url}"
         
         elif filename.endswith((".mp4", ".mov", ".avi")):
 
