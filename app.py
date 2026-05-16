@@ -177,46 +177,67 @@ def generate_qr():
 
     data = ""
 
-   if file and file.filename != "":
+    
+    if file and file.filename != "":
 
-    filename = file.filename.lower()
+        filename = file.filename.lower()
 
-    if filename.endswith(".pdf"):
+        
+        if filename.endswith(".pdf"):
 
-        filepath = os.path.join(
-            app.config['UPLOAD_FOLDER'],
-            file.filename
-        )
+            filepath = os.path.join(
+                app.config['UPLOAD_FOLDER'],
+                file.filename
+            )
 
-        file.save(filepath)
+            file.save(filepath)
 
-        data = f"{request.host_url}uploads/{file.filename}"
+            data = f"{request.host_url}uploads/{file.filename}"
+
+        
+        elif filename.endswith((".mp4", ".mov", ".avi")):
+
+            result = cloudinary.uploader.upload(
+                file,
+                resource_type="video"
+            )
+
+            data = result['secure_url']
+
+        
+        else:
+
+            result = cloudinary.uploader.upload(
+                file,
+                resource_type="image"
+            )
+
+            data = result['secure_url']
 
     
-    elif filename.endswith((".mp4", ".mov", ".avi")):
-
-        result = cloudinary.uploader.upload( file, resource_type="video" )
-
-        data = result['secure_url']
-
-   
-    else:
-
-        result = cloudinary.uploader.upload(file, resource_type="image" )
-        data = result['secure_url']
     elif text:
+
         data = text
 
     else:
+
         return "No input provided"
 
+    
     qr = qrcode.make(data)
 
-    qr_path = os.path.join( QR_FOLDER, "qr.png" )
+    qr_path = os.path.join(
+        QR_FOLDER,
+        "qr.png"
+    )
 
     qr.save(qr_path)
 
-    return render_template('index.html', qr_image="qr.png", data=data)
+    return render_template(
+        'index.html',
+        qr_image="qr.png",
+        data=data
+    )
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
