@@ -169,29 +169,20 @@ def generate_qr():
     
         filename = file.filename.lower()
     
-        # PDF
+        
     if filename.endswith(".pdf"):
     
-            result = cloudinary.uploader.upload(
-                file,
-                resource_type="image"
-            )
+        result = cloudinary.uploader.upload( file, resource_type="image" )
     
-        # Video
+        
     elif filename.endswith((".mp4", ".mov", ".avi")):
     
-            result = cloudinary.uploader.upload(
-                file,
-                resource_type="video"
-            )
+         result = cloudinary.uploader.upload(file, resource_type="video" )
     
-        # Images
+        
     else:
     
-            result = cloudinary.uploader.upload(
-                file,
-                resource_type="image"
-            )
+        result = cloudinary.uploader.upload(file, resource_type="image" )
     
         data = result['secure_url']
 
