@@ -174,9 +174,6 @@ def generate_qr():
 
             data = result['secure_url']
 
-            if file.filename.lower().endswith(".pdf"):
-                data = data.replace("/upload/", "/upload/fl_attachment/")
-
         except Exception as e:
 
             return f"Cloudinary Error: {str(e)}"
