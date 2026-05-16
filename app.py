@@ -1,22 +1,29 @@
 import os
+from unittest import result
 from flask import Flask, render_template, request, send_file
 import qrcode
 from werkzeug.utils import secure_filename
 import random
 from flask import session
+import cloudinary
+import cloudinary.uploader
 
 app = Flask(__name__)
+
+cloudinary.config(
+    cloud_name="dpqxrl31h",
+    api_key="651978524442419",
+    api_secret="fnRUMMB-sXVZTizMiJwjR6__95c"
+)
 app.secret_key = 'supersecretkey'  
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 QR_FOLDER = os.path.join(BASE_DIR, 'static/qr_codes')
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(QR_FOLDER, exist_ok=True)
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 
 
 @app.route('/')
@@ -31,8 +38,8 @@ def view_messages():
     messages = []
 
     try:
-        file_path = os.path.join(BASE_DIR, "data.txt")
-        with open(file_path, "r", encoding="utf-8") as f:
+        
+        with open("data.txt", "r", encoding="utf-8") as f:
             lines = f.readlines()
 
             for i, line in enumerate(lines):
@@ -52,12 +59,12 @@ def view_messages():
 @app.route('/delete/<int:msg_id>')
 def delete_message(msg_id):
     try:
-        file_path = os.path.join(BASE_DIR, "data.txt")
+        
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open("data.txt", "r", encoding="utf-8") as f:
             lines = f.readlines()
 
-        with open(file_path, "w", encoding="utf-8") as f:
+        with open("data.txt", "w", encoding="utf-8") as f:
             for i, line in enumerate(lines):
                 if i != msg_id:
                     f.write(line)
@@ -66,6 +73,8 @@ def delete_message(msg_id):
         return f"Error: {e}"
 
     return "<h3>Deleted ✅</h3><a href='/admin/messages?key=28195373'>Go Back</a>"
+    
+
 
 @app.route('/admin/files')
 def view_files():
@@ -122,8 +131,7 @@ def contact():
 
         
         try:
-            file_path = os.path.join(BASE_DIR, "data.txt")
-            with open(file_path, "a", encoding="utf-8") as f:
+            with open("data.txt", "a", encoding="utf-8") as f:
                  f.write(f"{name}|{email}|{message}\n")
         except Exception as e:
             return f"Error saving data: {e}"
@@ -156,12 +164,9 @@ def generate_qr():
     data = ""
 
     if file and file.filename != "":
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-
-        data = request.host_url + "uploads/" + filename
-
+        result = cloudinary.uploader.upload(file)
+        data = result['secure_url']
+        
     elif text:
         data = text
     else:
@@ -176,14 +181,9 @@ def generate_qr():
     return render_template('index.html', qr_image=qr_filename, data=data)
 
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_file(
-        os.path.join(app.config['UPLOAD_FOLDER'], filename),
-        as_attachment=False
-    )
+
 
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
     
