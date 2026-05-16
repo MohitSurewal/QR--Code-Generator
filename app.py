@@ -9,6 +9,7 @@ import cloudinary
 import cloudinary.uploader
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 cloudinary.config(
     cloud_name="dpqxrl31h",
@@ -164,7 +165,7 @@ def generate_qr():
     data = ""
 
     if file and file.filename != "":
-        result = cloudinary.uploader.upload(file)
+        result = cloudinary.uploader.upload( file, resource_type="auto")
         data = result['secure_url']
         
     elif text:
