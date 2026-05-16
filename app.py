@@ -143,7 +143,7 @@ def contact():
 
         return render_template(
             "contact.html",
-            success="Message saved ✅",
+            success="Message saved✅",
             num1=num1,
             num2=num2
         )
