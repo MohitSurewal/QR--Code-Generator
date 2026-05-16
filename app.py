@@ -169,7 +169,7 @@ def generate_qr():
 
             result = cloudinary.uploader.upload(
              file,
-             resource_type="auto"
+             resource_type="raw"
              )
 
             data = result['secure_url']
