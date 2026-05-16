@@ -165,8 +165,18 @@ def generate_qr():
     data = ""
 
     if file and file.filename != "":
-        result = cloudinary.uploader.upload( file, resource_type="auto")
-        data = result['secure_url']
+        try:
+
+            result = cloudinary.uploader.upload(
+             file,
+             resource_type="auto"
+             )
+
+            data = result['secure_url']
+
+        except Exception as e:
+
+            return f"Cloudinary Error: {str(e)}"
         
     elif text:
         data = text
