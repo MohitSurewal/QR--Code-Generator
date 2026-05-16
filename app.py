@@ -7,6 +7,7 @@ import random
 from flask import session
 import cloudinary
 import cloudinary.uploader
+import cloudinary.utils
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
@@ -169,10 +170,16 @@ def generate_qr():
 
             result = cloudinary.uploader.upload(
              file,
-             resource_type="auto"
+             resource_type="raw"
              )
 
-            data = result['secure_url']
+            public_id = result['public_id']
+
+            data = cloudinary.utils.cloudinary_url(
+                public_id,
+                resource_type="raw",
+                flags="attachment"
+            )[0]
 
         except Exception as e:
 
