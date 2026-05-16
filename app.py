@@ -173,22 +173,15 @@ def generate_qr():
     if filename.endswith(".pdf"):
     
         result = cloudinary.uploader.upload( file, resource_type="image" )
-    
-        
+       
     elif filename.endswith((".mp4", ".mov", ".avi")):
     
-         result = cloudinary.uploader.upload(file, resource_type="video" )
-    
+         result = cloudinary.uploader.upload(file, resource_type="video" )  
         
     else:
-    
         result = cloudinary.uploader.upload(file, resource_type="image" )
     
         data = result['secure_url']
-
-        except Exception as e:
-
-            return f"Cloudinary Error: {str(e)}"
         
     elif text:
         data = text
