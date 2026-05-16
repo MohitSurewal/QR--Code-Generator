@@ -1,6 +1,6 @@
 import os
 from unittest import result
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_from_directory
 import qrcode
 from werkzeug.utils import secure_filename
 import random
@@ -9,8 +9,18 @@ import cloudinary
 import cloudinary.uploader
 import cloudinary.utils
 
+
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 
 cloudinary.config(
     cloud_name="dpqxrl31h",
@@ -167,61 +177,51 @@ def generate_qr():
 
     data = ""
 
-    if file and file.filename != "":
+   if file and file.filename != "":
 
-        filename = file.filename.lower()
+    filename = file.filename.lower()
 
-      
-        if filename.endswith(".pdf"):
+    if filename.endswith(".pdf"):
 
-            result = cloudinary.uploader.upload(
-                file,
-                resource_type="image"
-            )
-            pdf_url = result['secure_url']
+        filepath = os.path.join(
+            app.config['UPLOAD_FOLDER'],
+            file.filename
+        )
 
-            data = f"https://docs.google.com/gview?embedded=1&url={pdf_url}"
-        
-        elif filename.endswith((".mp4", ".mov", ".avi")):
+        file.save(filepath)
 
-            result = cloudinary.uploader.upload(
-                file,
-                resource_type="video"
-            )
+        data = f"{request.host_url}uploads/{file.filename}"
 
-        
-        else:
+    
+    elif filename.endswith((".mp4", ".mov", ".avi")):
 
-            result = cloudinary.uploader.upload(
-                file,
-                resource_type="image"
-            )
+        result = cloudinary.uploader.upload( file, resource_type="video" )
 
         data = result['secure_url']
 
-    elif text:
+   
+    else:
 
+        result = cloudinary.uploader.upload(file, resource_type="image" )
+        data = result['secure_url']
+    elif text:
         data = text
 
     else:
-
         return "No input provided"
 
     qr = qrcode.make(data)
 
-    qr_path = os.path.join(
-        QR_FOLDER,
-        "qr.png"
-    )
+    qr_path = os.path.join( QR_FOLDER, "qr.png" )
 
     qr.save(qr_path)
 
-    return render_template(
-        'index.html',
-        qr_image="qr.png",
-        data=data
-    )
+    return render_template('index.html', qr_image="qr.png", data=data)
 
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+
+    return send_from_directory( app.config['UPLOAD_FOLDER'], filename )
 
 
 
