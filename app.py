@@ -6,7 +6,7 @@ import random
 from flask import session
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'  
+app.secret_key = '*************'  
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -25,7 +25,7 @@ def index():
 
 @app.route('/admin/messages')
 def view_messages():
-    if request.args.get("key") != "28195373":
+    if request.args.get("key") != "**********":
         return "Unauthorized ❌"
 
     messages = []
@@ -65,11 +65,11 @@ def delete_message(msg_id):
     except Exception as e:
         return f"Error: {e}"
 
-    return "<h3>Deleted ✅</h3><a href='/admin/messages?key=28195373'>Go Back</a>"
+    return "<h3>Deleted ✅</h3><a href='/admin/messages?key=************'>Go Back</a>"
 
 @app.route('/admin/files')
 def view_files():
-    if request.args.get("key") != "28195373":
+    if request.args.get("key") != "***********":
         return "Unauthorized ❌"
 
     files = []
