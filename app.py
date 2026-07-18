@@ -250,7 +250,7 @@ def generate_qr():
 
         qr_width, qr_height = qr_img.size
 
-        logo_size = int(qr_width * 0.18)
+        logo_size = int(qr_width * 0.38)
 
         logo = logo.resize(
             (logo_size, logo_size),
@@ -258,8 +258,8 @@ def generate_qr():
         )
 
         pos = (
-            (qr_width - logo_size) // 2,
-            (qr_height - logo_size) // 2
+            (qr_width - logo_size) // 5,
+            (qr_height - logo_size) // 5
         )
 
         if logo.mode == "RGBA":
