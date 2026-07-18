@@ -250,7 +250,7 @@ def generate_qr():
 
         qr_width, qr_height = qr_img.size
 
-        logo_size = int(qr_width * 0.18)
+        logo_size = int(qr_width * 1.0)
 
         logo = logo.resize(
             (logo_size, logo_size),
