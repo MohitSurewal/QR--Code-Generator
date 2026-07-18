@@ -241,7 +241,7 @@ def generate_qr():
 
     logo_path = os.path.join(
         app.static_folder,
-        "logo_icon.png"
+        "logo.png"
     )
 
     if os.path.exists(logo_path):
@@ -250,7 +250,7 @@ def generate_qr():
 
         qr_width, qr_height = qr_img.size
 
-        logo_size = int(qr_width * 0.38)
+        logo_size = int(qr_width * 0.70)
 
         logo = logo.resize(
             (logo_size, logo_size),
@@ -258,8 +258,8 @@ def generate_qr():
         )
 
         pos = (
-            (qr_width - logo_size) // 5,
-            (qr_height - logo_size) // 5
+            (qr_width - logo_size) // 2,
+            (qr_height - logo_size) // 2
         )
 
         if logo.mode == "RGBA":
