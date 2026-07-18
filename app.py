@@ -1,4 +1,5 @@
 import os
+from PIL import Image
 from unittest import result
 from flask import Flask, render_template, request, send_from_directory
 import qrcode
@@ -167,22 +168,19 @@ def contact():
 
     return render_template("contact.html", num1=num1, num2=num2)
 
-
 @app.route('/generate', methods=['POST'])
 def generate_qr():
 
     text = request.form.get('text')
-
     file = request.files.get('file')
 
     data = ""
 
-    
     if file and file.filename != "":
 
         filename = file.filename.lower()
 
-        
+        # PDF
         if filename.endswith(".pdf"):
 
             filepath = os.path.join(
@@ -194,7 +192,7 @@ def generate_qr():
 
             data = f"{request.host_url}uploads/{file.filename}"
 
-        
+        # Video
         elif filename.endswith((".mp4", ".mov", ".avi")):
 
             result = cloudinary.uploader.upload(
@@ -202,9 +200,9 @@ def generate_qr():
                 resource_type="video"
             )
 
-            data = result['secure_url']
+            data = result["secure_url"]
 
-        
+        # Image
         else:
 
             result = cloudinary.uploader.upload(
@@ -212,9 +210,8 @@ def generate_qr():
                 resource_type="image"
             )
 
-            data = result['secure_url']
+            data = result["secure_url"]
 
-    
     elif text:
 
         data = text
@@ -223,22 +220,74 @@ def generate_qr():
 
         return "No input provided"
 
-    
-    qr = qrcode.make(data)
+
+
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=10,
+        border=4
+    )
+
+    qr.add_data(data)
+    qr.make(fit=True)
+
+    qr_img = qr.make_image(
+        fill_color="black",
+        back_color="white"
+    ).convert("RGB")
+
+   
+
+    logo_path = os.path.join(
+        app.static_folder,
+        "logo_icon.png"
+    )
+
+    if os.path.exists(logo_path):
+
+        logo = Image.open(logo_path)
+
+        qr_width, qr_height = qr_img.size
+
+        logo_size = int(qr_width * 0.18)
+
+        logo = logo.resize(
+            (logo_size, logo_size),
+            Image.LANCZOS
+        )
+
+        pos = (
+            (qr_width - logo_size) // 2,
+            (qr_height - logo_size) // 2
+        )
+
+        if logo.mode == "RGBA":
+            qr_img.paste(
+                logo,
+                pos,
+                logo
+            )
+        else:
+            qr_img.paste(
+                logo,
+                pos
+            )
+
+ 
 
     qr_path = os.path.join(
         QR_FOLDER,
         "qr.png"
     )
 
-    qr.save(qr_path)
+    qr_img.save(qr_path)
 
     return render_template(
-        'index.html',
+        "index.html",
         qr_image="qr.png",
         data=data
     )
-
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
 
