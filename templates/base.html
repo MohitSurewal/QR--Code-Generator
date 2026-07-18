@@ -21,9 +21,9 @@ window.onload = () => {
 </script>
 <body>
 <nav class="navbar">
+<img src="{{ url_for('static', filename='logo.png') }}" width="105">
     <div class="container">
         <a href="/" class="logo">QR Generator</a>
-        <img src="{{ url_for('static', filename='logo.png') }}" width="105">
         <ul class="nav-links">
             <li><a href="/">Home</a></li>
             <li><a href="/about">About</a></li>
