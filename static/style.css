@@ -17,37 +17,106 @@ body {
 }
 
 
-.navbar {
-    display: flex;
-    justify-content: center;
-    gap: 40px;
-    padding: 20px;
-    background: rgba(0,0,0,0.4);
-    backdrop-filter: blur(10px);
-    animation: slideDown 0.8s ease;
+/*==========================
+NAVBAR
+==========================*/
+
+.navbar{
+
+width:100%;
+
+background:rgba(0,0,0,.45);
+
+backdrop-filter:blur(12px);
+
+position:sticky;
+
+top:0;
+
+z-index:1000;
+
 }
 
-.navbar a {
-    color: white;
-    text-decoration: none;
-    font-weight: 500;
-    position: relative;
+.nav-container{
+
+max-width:1200px;
+
+margin:auto;
+
+display:flex;
+
+justify-content:space-between;
+
+align-items:center;
+
+padding:15px 20px;
+
 }
 
+.brand{
 
-.navbar a::after {
-    content: "";
-    position: absolute;
-    width: 0%;
-    height: 2px;
-    background: #00f2fe;
-    left: 0;
-    bottom: -5px;
-    transition: 0.3s;
+display:flex;
+
+align-items:center;
+
+gap:12px;
+
+color:white;
+
+text-decoration:none;
+
+font-size:22px;
+
+font-weight:700;
+
 }
 
-.navbar a:hover::after {
-    width: 100%;
+.brand img{
+
+width:45px;
+
+height:45px;
+
+}
+
+.nav-links{
+
+display:flex;
+
+gap:35px;
+
+list-style:none;
+
+}
+
+.nav-links a{
+
+color:white;
+
+text-decoration:none;
+
+font-weight:500;
+
+transition:.3s;
+
+}
+
+.nav-links a:hover{
+
+color:#00f2fe;
+
+}
+
+.hamburger{
+
+display:none;
+
+font-size:30px;
+
+cursor:pointer;
+
+color:white;
+
 }
 
 
@@ -387,4 +456,106 @@ ul li {
 .error-msg {
     color: red;
     margin-bottom: 10px;
+}
+
+/*==========================
+MOBILE
+==========================*/
+
+@media(max-width:768px){
+
+.nav-container{
+
+padding:15px;
+
+}
+
+.brand span{
+
+font-size:18px;
+
+}
+
+.brand img{
+
+width:40px;
+
+height:40px;
+
+}
+
+.hamburger{
+
+display:block;
+
+}
+
+.nav-links{
+
+position:absolute;
+
+top:75px;
+
+left:0;
+
+width:100%;
+
+background:#13293d;
+
+display:none;
+
+flex-direction:column;
+
+padding:20px;
+
+text-align:center;
+
+gap:20px;
+
+}
+
+.nav-links.active{
+
+display:flex;
+
+}
+
+.container{
+
+padding:15px;
+
+margin:20px auto;
+
+}
+
+.card{
+
+padding:25px;
+
+}
+
+input[type=text],
+
+input[type=file]{
+
+width:100%;
+
+}
+
+button{
+
+width:100%;
+
+}
+
+.qr-box img{
+
+width:220px;
+
+max-width:100%;
+
+height:auto;
+
+}
+
 }
