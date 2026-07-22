@@ -1,81 +1,44 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Generator</title>
 
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
 
-<title>Surewal Tech | QR Generator</title>
+    <!-- Scripts -->
+    <script>
+        document.querySelectorAll("a").forEach(link => {
+            link.addEventListener("click", function(e) {
+                document.body.style.opacity = 0;
+            });
+        });
 
-<link rel="icon"
-type="image/png"
-href="{{ url_for('static', filename='logo.png') }}">
-
-<link rel="stylesheet"
-href="{{ url_for('static', filename='style.css') }}">
-
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
-
+        window.onload = () => {
+            document.body.style.opacity = 1;
+        };
+    </script>
 </head>
-
 <body>
 
-<nav class="navbar">
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">QR Generator</a>
+            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="/about">About</a></li>
+                <li><a href="/services">Services</a></li>
+                <li><a href="/contact">Contact</a></li>
+            </ul>
+        </div>
+    </nav>
 
-<div class="nav-container">
-
-<a href="/" class="brand">
-
-<img src="{{ url_for('static', filename='logo.png') }}">
-
-<span>Surewal.Tech</span>
-
-</a>
-
-<div class="hamburger" id="hamburger">
-
-☰
-
-</div>
-
-<ul class="nav-links" id="navLinks">
-
-<li><a href="/">Home</a></li>
-
-<li><a href="/about">About</a></li>
-
-<li><a href="/services">Services</a></li>
-
-<li><a href="/contact">Contact</a></li>
-
-</ul>
-
-</div>
-
-</nav>
-
-<div class="container">
-
-{% block content %}
-
-{% endblock %}
-
-</div>
-
-<script>
-
-const hamburger=document.getElementById("hamburger");
-
-const nav=document.getElementById("navLinks");
-
-hamburger.onclick=()=>{
-
-nav.classList.toggle("active");
-
-}
-
-</script>
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
 
 </body>
-
 </html>
