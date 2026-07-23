@@ -14,6 +14,18 @@ import cloudinary.utils
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
+# Allowed File Types
+ALLOWED_EXTENSIONS = {
+    "pdf",
+    "png",
+    "jpg",
+    "jpeg",
+    "gif",
+    "mp4",
+    "mov",
+    "avi"
+}
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
@@ -169,6 +181,11 @@ def contact():
 
     return render_template("contact.html", num1=num1, num2=num2)
 
+def allowed_file(filename):
+
+    return "." in filename and \
+        filename.rsplit(".",1)[1].lower() in ALLOWED_EXTENSIONS
+
 @app.route('/generate', methods=['POST'])
 def generate_qr():
 
@@ -177,15 +194,25 @@ def generate_qr():
 
     data = ""
 
-    if file and file.filename != "":
+if file and file.filename != "":
 
-        filename = secure_filename(file.filename)
+    if not allowed_file(file.filename):
 
-        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        return render_template(
+            "index.html",
+            error="Unsupported file type!"
+        )
 
-        file.save(filepath)
+    filename = secure_filename(file.filename)
 
-        data = request.host_url + "uploads/" + filename
+    filepath = os.path.join(
+        app.config["UPLOAD_FOLDER"],
+        filename
+    )
+
+    file.save(filepath)
+
+    data = request.host_url + "uploads/" + filename
 
     elif text:
 
