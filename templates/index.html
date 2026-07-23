@@ -4,6 +4,11 @@
 
 <div class="card">
     <h2>QR Code Generator 〽️</h2>
+    {% if error %}
+<div class="error-box">
+    {{ error }}
+</div>
+{% endif %}
 
     <form action="/generate" method="POST" enctype="multipart/form-data">
         <input type="text" name="text" placeholder="Enter link or text">
