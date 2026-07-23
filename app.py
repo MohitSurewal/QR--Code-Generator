@@ -203,16 +203,17 @@ if file and file.filename != "":
             error="Unsupported file type!"
         )
 
-    filename = secure_filename(file.filename)
+    original_filename = secure_filename(file.filename)
 
-    filepath = os.path.join(
-        app.config["UPLOAD_FOLDER"],
-        filename
-    )
+    extension = original_filename.rsplit(".",1)[1].lower()
+
+    unique_filename = f"{uuid.uuid4().hex}.{extension}"
+
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"],unique_filename)
 
     file.save(filepath)
 
-    data = request.host_url + "uploads/" + filename
+    data = request.host_url + "uploads/" + unique_filename
 
     elif text:
 
@@ -287,7 +288,23 @@ if file and file.filename != "":
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
 
-    return send_from_directory( app.config['UPLOAD_FOLDER'], filename )
+    filepath = os.path.join(
+
+    app.config["UPLOAD_FOLDER"],
+
+    filename)
+
+    if not os.path.exists(filepath):
+    
+        return "File not found",404
+    
+    return send_file(
+    
+        filepath,
+    
+        as_attachment=False
+    
+    )
 
 
 
