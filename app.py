@@ -33,6 +33,7 @@ app.secret_key = 'supersecretkey'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 QR_FOLDER = os.path.join(BASE_DIR, 'static/qr_codes')
+LOGO_PATH = os.path.join(BASE_DIR, "static", "images", "logo.png")
 
 os.makedirs(QR_FOLDER, exist_ok=True)
 
@@ -171,122 +172,90 @@ def contact():
 @app.route('/generate', methods=['POST'])
 def generate_qr():
 
-    text = request.form.get('text')
-    file = request.files.get('file')
+    text = request.form.get("text")
+    file = request.files.get("file")
 
     data = ""
 
     if file and file.filename != "":
 
-        filename = file.filename.lower()
+        filename = secure_filename(file.filename)
 
-        # PDF
-        if filename.endswith(".pdf"):
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
 
-            filepath = os.path.join(
-                app.config['UPLOAD_FOLDER'],
-                file.filename
-            )
+        file.save(filepath)
 
-            file.save(filepath)
-
-            data = f"{request.host_url}uploads/{file.filename}"
-
-        # Video
-        elif filename.endswith((".mp4", ".mov", ".avi")):
-
-            result = cloudinary.uploader.upload(
-                file,
-                resource_type="video"
-            )
-
-            data = result["secure_url"]
-
-        # Image
-        else:
-
-            result = cloudinary.uploader.upload(
-                file,
-                resource_type="image"
-            )
-
-            data = result["secure_url"]
+        data = request.host_url + "uploads/" + filename
 
     elif text:
 
-        data = text
+        data = text.strip()
 
     else:
 
         return "No input provided"
 
-
-
     qr = qrcode.QRCode(
+
         version=1,
+
         error_correction=qrcode.constants.ERROR_CORRECT_H,
+
         box_size=10,
+
         border=4
+
     )
 
     qr.add_data(data)
+
     qr.make(fit=True)
 
-    qr_img = qr.make_image(
+    img = qr.make_image(
+
         fill_color="black",
+
         back_color="white"
+
     ).convert("RGB")
 
-   
+    if os.path.exists(LOGO_PATH):
 
-    logo_path = os.path.join(
-        app.static_folder,
-        "logo.png"
-    )
+        logo = Image.open(LOGO_PATH)
 
-    if os.path.exists(logo_path):
+        logo_size = 70
 
-        logo = Image.open(logo_path)
+        logo = logo.resize((logo_size, logo_size))
 
-        qr_width, qr_height = qr_img.size
+        x = (img.size[0] - logo_size) // 2
 
-        logo_size = int(qr_width * 1.0)
+        y = (img.size[1] - logo_size) // 2
 
-        logo = logo.resize(
-            (logo_size, logo_size),
-            Image.LANCZOS
+        img.paste(
+
+            logo,
+
+            (x, y),
+
+            mask=logo if logo.mode == "RGBA" else None
+
         )
 
-        pos = (
-            (qr_width - logo_size) // 2,
-            (qr_height - logo_size) // 2
-        )
+    qr_filename = f"{uuid.uuid4().hex}.png"
 
-        if logo.mode == "RGBA":
-            qr_img.paste(
-                logo,
-                pos,
-                logo
-            )
-        else:
-            qr_img.paste(
-                logo,
-                pos
-            )
+    qr_path = os.path.join(QR_FOLDER, qr_filename)
 
- 
-
-    qr_path = os.path.join(
-        QR_FOLDER,
-        "qr.png"
-    )
-
-    qr_img.save(qr_path)
+    img.save(qr_path)
 
     return render_template(
+
         "index.html",
-        qr_image="qr.png",
+
+        qr_image=qr_filename,
+
         data=data
+
+    )
     )
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
