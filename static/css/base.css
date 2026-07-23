@@ -1,1 +1,168 @@
+/* =====================================
+   Surewal.tech Base Theme
+===================================== */
 
+:root{
+
+    --bg:#08131f;
+    --bg2:#102b4c;
+
+    --primary:#2563eb;
+
+    --primary-light:#60a5fa;
+
+    --white:#ffffff;
+
+    --text:#d9e6f2;
+
+    --card:rgba(255,255,255,.06);
+
+    --border:rgba(255,255,255,.10);
+
+    --shadow:0 10px 30px rgba(0,0,0,.25);
+
+    --radius:18px;
+
+}
+
+/* Reset */
+
+*{
+
+    margin:0;
+
+    padding:0;
+
+    box-sizing:border-box;
+
+}
+
+/* Body */
+
+body{
+
+    font-family:Poppins,sans-serif;
+
+    background:linear-gradient(135deg,var(--bg),var(--bg2));
+
+    color:var(--white);
+
+    min-height:100vh;
+
+    line-height:1.6;
+
+}
+
+/* Links */
+
+a{
+
+    color:inherit;
+
+    text-decoration:none;
+
+}
+
+/* Images */
+
+img{
+
+    max-width:100%;
+
+    display:block;
+
+}
+
+/* Main Container */
+
+.container{
+
+    width:90%;
+
+    max-width:1150px;
+
+    margin:auto;
+
+    padding:40px 0;
+
+}
+
+/* Cards */
+
+.card{
+
+    background:var(--card);
+
+    border:1px solid var(--border);
+
+    border-radius:var(--radius);
+
+    box-shadow:var(--shadow);
+
+    padding:30px;
+
+    margin:30px 0;
+
+}
+
+/* Buttons */
+
+button{
+
+    background:var(--primary);
+
+    color:white;
+
+    border:none;
+
+    border-radius:10px;
+
+    padding:12px 22px;
+
+    cursor:pointer;
+
+    font-size:16px;
+
+    transition:.3s;
+
+}
+
+button:hover{
+
+    background:var(--primary-light);
+
+    transform:translateY(-2px);
+
+}
+
+/* Inputs */
+
+input,
+
+textarea{
+
+    width:100%;
+
+    padding:12px;
+
+    border-radius:10px;
+
+    border:1px solid var(--border);
+
+    background:rgba(255,255,255,.08);
+
+    color:white;
+
+    margin-top:8px;
+
+    margin-bottom:18px;
+
+}
+
+input::placeholder,
+
+textarea::placeholder{
+
+    color:#cbd5e1;
+
+}
