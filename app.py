@@ -10,8 +10,11 @@ from flask import (Flask,render_template, request, send_file, send_from_director
 from PIL import Image
 import qrcode
 from werkzeug.utils import secure_filename
+import sqlite3
+from datetime import datetime
 
 app = Flask(__name__)
+init_db()
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 # Allowed File Types
@@ -159,6 +162,34 @@ def allowed_file(filename):
     return "." in filename and \
         filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def init_db():
+
+    conn = sqlite3.connect("database.db")
+
+    cursor = conn.cursor()
+
+    cursor.execute("""
+
+        CREATE TABLE IF NOT EXISTS qr_history(
+
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            created_at TEXT,
+
+            qr_type TEXT,
+
+            qr_data TEXT,
+
+            qr_image TEXT
+
+        )
+
+    """)
+
+    conn.commit()
+
+    conn.close()
+
 
 def delete_old_files(folder, days=30):
     now = time.time()
@@ -232,6 +263,37 @@ def generate_qr():
     qr_filename = f"{uuid.uuid4().hex}.png"
     qr_path = os.path.join(QR_FOLDER, qr_filename)
     img.save(qr_path)
+    conn = sqlite3.connect("database.db")
+
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+    
+    INSERT INTO qr_history(
+    
+    created_at,
+    
+    qr_type,
+    
+    qr_data,
+    
+    qr_image
+    
+    )
+    
+    VALUES(?,?,?,?)
+    
+    """,(datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    
+    "text" if text else "file",
+    
+    data,
+    
+    qr_filename))
+    
+    conn.commit()
+    
+    conn.close()
 
     return render_template(
         "index.html",
@@ -251,7 +313,34 @@ def uploaded_file(filename):
         filepath,
         as_attachment=False
     )
+@app.route("/history")
+def history():
 
+    conn = sqlite3.connect("database.db")
+
+    conn.row_factory = sqlite3.Row
+
+    cursor = conn.cursor()
+
+    cursor.execute("""
+
+    SELECT * FROM qr_history
+
+    ORDER BY id DESC
+
+    """)
+
+    history = cursor.fetchall()
+
+    conn.close()
+
+    return render_template(
+
+        "history.html",
+
+        history=history
+
+    )
 
 if __name__ == "__main__":
     app.run(debug=True)
