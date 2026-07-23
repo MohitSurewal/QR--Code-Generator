@@ -9,7 +9,7 @@ from flask import session
 import cloudinary
 import cloudinary.uploader
 import cloudinary.utils
-
+import time
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
@@ -186,8 +186,34 @@ def allowed_file(filename):
     return "." in filename and \
         filename.rsplit(".",1)[1].lower() in ALLOWED_EXTENSIONS
 
+def delete_old_files(folder, days=30):
+
+    now = time.time()
+
+    expiry = days * 24 * 60 * 60
+
+    for filename in os.listdir(folder):
+
+        filepath = os.path.join(folder, filename)
+
+        if os.path.isfile(filepath):
+
+            if now - os.path.getmtime(filepath) > expiry:
+
+                try:
+
+                    os.remove(filepath)
+
+                except Exception:
+
+                    pass
+
 @app.route('/generate', methods=['POST'])
 def generate_qr():
+
+    delete_old_files(QR_FOLDER)
+
+    delete_old_files(UPLOAD_FOLDER)
 
     text = request.form.get("text")
     file = request.files.get("file")
