@@ -186,3 +186,54 @@ FEATURE SECTION
     text-align:center;
 
 }
+/* QR Buttons */
+
+.qr-buttons{
+
+    display:flex;
+
+    justify-content:center;
+
+    gap:15px;
+
+    margin-top:25px;
+
+    flex-wrap:wrap;
+
+}
+
+.secondary-btn{
+
+    background:#334155;
+
+}
+
+.secondary-btn:hover{
+
+    background:#475569;
+
+}
+
+/* Branding */
+
+.brand-text{
+
+    margin-top:25px;
+
+    color:#94a3b8;
+
+    font-size:14px;
+
+}
+
+.qr-info{
+
+    margin-top:20px;
+
+    background:rgba(255,255,255,.05);
+
+    padding:15px;
+
+    border-radius:10px;
+
+}
