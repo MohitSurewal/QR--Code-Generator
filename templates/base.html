@@ -1,44 +1,159 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Generator</title>
 
-    <!-- Stylesheets -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
+    <title>Surewal.tech | QR Code Generator</title>
 
-    <!-- Scripts -->
-    <script>
-        document.querySelectorAll("a").forEach(link => {
-            link.addEventListener("click", function(e) {
-                document.body.style.opacity = 0;
-            });
-        });
+    <meta name="description"
+        content="Generate Professional QR Codes for URLs, PDFs, Images and Videos using Surewal.tech">
 
-        window.onload = () => {
-            document.body.style.opacity = 1;
-        };
-    </script>
+    <link rel="icon"
+        href="{{ url_for('static', filename='images/logo.png') }}">
+
+    
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+
+    <link rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}">
+
 </head>
+
 <body>
 
-    <nav class="navbar">
-        <div class="container">
-            <a href="/" class="logo">QR Generator</a>
-            <ul class="nav-links">
-                <li><a href="/">Home</a></li>
-                <li><a href="/about">About</a></li>
-                <li><a href="/services">Services</a></li>
-                <li><a href="/contact">Contact</a></li>
-            </ul>
-        </div>
-    </nav>
 
-    <div class="container">
-        {% block content %}{% endblock %}
-    </div>
+    <header class="navbar">
+
+        <div class="nav-container">
+
+            <a href="/" class="brand">
+
+                <img src="{{ url_for('static', filename='images/logo.png') }}">
+
+                <span>Surewal.tech</span>
+
+            </a>
+
+            <div class="hamburger">
+
+                <i class="fa-solid fa-bars"></i>
+
+            </div>
+
+            <ul class="nav-links">
+
+                <li>
+                    <a href="/">Home</a>
+                </li>
+
+                <li>
+                    <a href="/about">About</a>
+                </li>
+
+                <li>
+                    <a href="/services">Services</a>
+                </li>
+
+                <li>
+                    <a href="/contact">Contact</a>
+                </li>
+
+            </ul>
+
+        </div>
+
+    </header>
+
+
+    <main>
+
+        <div class="container">
+
+            {% block content %}
+            {% endblock %}
+
+        </div>
+
+    </main>
+
+    <
+
+    <footer class="footer">
+
+        <div class="footer-content">
+
+            <div>
+
+                <h2>Surewal.tech</h2>
+
+                <p>
+
+                    Professional QR Code Generator for
+
+                    URLs, Images, PDFs and Videos.
+
+                </p>
+
+            </div>
+
+            <div class="footer-links">
+
+                <a href="/">Home</a>
+
+                <a href="/about">About</a>
+
+                <a href="/services">Services</a>
+
+                <a href="/contact">Contact</a>
+
+            </div>
+
+            <div class="social-icons">
+
+                <a href="#"><i class="fab fa-github"></i></a>
+
+                <a href="#"><i class="fab fa-linkedin"></i></a>
+
+                <a href="#"><i class="fab fa-instagram"></i></a>
+
+            </div>
+
+        </div>
+
+        <hr>
+
+        <p class="copyright">
+
+            © 2026 Surewal.tech • All Rights Reserved
+
+        </p>
+
+    </footer>
+
+   
+
+    <script>
+
+        const hamburger = document.querySelector(".hamburger");
+
+        const nav = document.querySelector(".nav-links");
+
+        hamburger.onclick = () => {
+
+            nav.classList.toggle("active");
+
+        }
+
+    </script>
 
 </body>
+
 </html>
