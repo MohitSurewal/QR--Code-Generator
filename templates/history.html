@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1>QR History</h1>
+
+<table>
+
+<tr>
+
+<th>ID</th>
+
+<th>Date</th>
+
+<th>Type</th>
+
+<th>QR</th>
+
+</tr>
+
+{% for row in history %}
+
+<tr>
+
+<td>{{ row.id }}</td>
+
+<td>{{ row.created_at }}</td>
+
+<td>{{ row.qr_type }}</td>
+
+<td>
+
+<img src="{{ url_for('static',
+
+filename='qr_codes/' + row.qr_image) }}"
+
+width="80">
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</table>
+
+{% endblock %}
