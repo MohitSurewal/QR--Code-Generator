@@ -171,3 +171,18 @@ FEATURE SECTION
     font-size:15px;
 
 }
+.error-box{
+
+    background:#dc2626;
+
+    color:white;
+
+    padding:12px;
+
+    border-radius:10px;
+
+    margin-bottom:20px;
+
+    text-align:center;
+
+}
