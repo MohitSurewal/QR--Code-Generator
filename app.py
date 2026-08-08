@@ -1,22 +1,42 @@
 import os
-from flask import Flask, render_template, request, send_file
+from PIL import Image
+from unittest import result
+from flask import Flask, render_template, request, send_from_directory
 import qrcode
 from werkzeug.utils import secure_filename
 import random
 from flask import session
+import cloudinary
+import cloudinary.uploader
+import cloudinary.utils
+
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'  
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-QR_FOLDER = os.path.join(BASE_DIR, 'static/qr_codes')
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(QR_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+
+cloudinary.config(
+    cloud_name="dpqxrl31h",
+    api_key="651978524442419",
+    api_secret="fnRUMMB-sXVZTizMiJwjR6__95c"
+)
+app.secret_key = 'supersecretkey'  
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+QR_FOLDER = os.path.join(BASE_DIR, 'static/qr_codes')
+
+os.makedirs(QR_FOLDER, exist_ok=True)
+
+
 
 
 @app.route('/')
@@ -31,8 +51,8 @@ def view_messages():
     messages = []
 
     try:
-        file_path = os.path.join(BASE_DIR, "data.txt")
-        with open(file_path, "r", encoding="utf-8") as f:
+        
+        with open("data.txt", "r", encoding="utf-8") as f:
             lines = f.readlines()
 
             for i, line in enumerate(lines):
@@ -52,12 +72,12 @@ def view_messages():
 @app.route('/delete/<int:msg_id>')
 def delete_message(msg_id):
     try:
-        file_path = os.path.join(BASE_DIR, "data.txt")
+        
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open("data.txt", "r", encoding="utf-8") as f:
             lines = f.readlines()
 
-        with open(file_path, "w", encoding="utf-8") as f:
+        with open("data.txt", "w", encoding="utf-8") as f:
             for i, line in enumerate(lines):
                 if i != msg_id:
                     f.write(line)
@@ -66,6 +86,8 @@ def delete_message(msg_id):
         return f"Error: {e}"
 
     return "<h3>Deleted ✅</h3><a href='/admin/messages?key=28195373'>Go Back</a>"
+    
+
 
 @app.route('/admin/files')
 def view_files():
@@ -122,8 +144,7 @@ def contact():
 
         
         try:
-            file_path = os.path.join(BASE_DIR, "data.txt")
-            with open(file_path, "a", encoding="utf-8") as f:
+            with open("data.txt", "a", encoding="utf-8") as f:
                  f.write(f"{name}|{email}|{message}\n")
         except Exception as e:
             return f"Error saving data: {e}"
@@ -135,7 +156,7 @@ def contact():
 
         return render_template(
             "contact.html",
-            success="Message saved ✅",
+            success="Message saved✅",
             num1=num1,
             num2=num2
         )
@@ -147,43 +168,134 @@ def contact():
 
     return render_template("contact.html", num1=num1, num2=num2)
 
-
 @app.route('/generate', methods=['POST'])
 def generate_qr():
+
     text = request.form.get('text')
     file = request.files.get('file')
 
     data = ""
 
     if file and file.filename != "":
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
 
-        data = request.host_url + "uploads/" + filename
+        filename = file.filename.lower()
+
+        # PDF
+        if filename.endswith(".pdf"):
+
+            filepath = os.path.join(
+                app.config['UPLOAD_FOLDER'],
+                file.filename
+            )
+
+            file.save(filepath)
+
+            data = f"{request.host_url}uploads/{file.filename}"
+
+        # Video
+        elif filename.endswith((".mp4", ".mov", ".avi")):
+
+            result = cloudinary.uploader.upload(
+                file,
+                resource_type="video"
+            )
+
+            data = result["secure_url"]
+
+        # Image
+        else:
+
+            result = cloudinary.uploader.upload(
+                file,
+                resource_type="image"
+            )
+
+            data = result["secure_url"]
 
     elif text:
+
         data = text
+
     else:
+
         return "No input provided"
 
-    qr = qrcode.make(data)
-
-    qr_filename = "qr.png"
-    qr_path = os.path.join(QR_FOLDER, qr_filename)
-    qr.save(qr_path)
-
-    return render_template('index.html', qr_image=qr_filename, data=data)
 
 
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=10,
+        border=4
+    )
+
+    qr.add_data(data)
+    qr.make(fit=True)
+
+    qr_img = qr.make_image(
+        fill_color="black",
+        back_color="white"
+    ).convert("RGB")
+
+   
+
+    logo_path = os.path.join(
+        app.static_folder,
+        "logo.png"
+    )
+
+    if os.path.exists(logo_path):
+
+        logo = Image.open(logo_path)
+
+        qr_width, qr_height = qr_img.size
+
+        logo_size = int(qr_width * 1.0)
+
+        logo = logo.resize(
+            (logo_size, logo_size),
+            Image.LANCZOS
+        )
+
+        pos = (
+            (qr_width - logo_size) // 2,
+            (qr_height - logo_size) // 2
+        )
+
+        if logo.mode == "RGBA":
+            qr_img.paste(
+                logo,
+                pos,
+                logo
+            )
+        else:
+            qr_img.paste(
+                logo,
+                pos
+            )
+
+ 
+
+    qr_path = os.path.join(
+        QR_FOLDER,
+        "qr.png"
+    )
+
+    qr_img.save(qr_path)
+
+    return render_template(
+        "index.html",
+        qr_image="qr.png",
+        data=data
+    )
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
-    return send_file(
-        os.path.join(app.config['UPLOAD_FOLDER'], filename),
-        as_attachment=False
-    )
+
+    return send_from_directory( app.config['UPLOAD_FOLDER'], filename )
+
+
 
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
     
