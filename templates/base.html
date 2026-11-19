@@ -1,35 +1,61 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>QR Generator</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <title>{% block title %}QR Studio{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
 </head>
-<script>
-document.querySelectorAll("a").forEach(link => {
-    link.addEventListener("click", function(e) {
-        document.body.style.opacity = 0;
-    });
-});
-
-window.onload = () => {
-    document.body.style.opacity = 1;
-};
-</script>
 <body>
-<nav class="navbar">
-    <div class="container">
-        <a href="/" class="logo">QR Generator</a>
-        <ul class="nav-links">
-            <li><a href="/">Home</a></li>
-            <li><a href="/about">About</a></li>
-            <li><a href="/services">Services</a></li>
-            <li><a href="/contact">Contact</a></li>
-        </ul>
-    </div>
-<div class="container">
-    {% block content %}{% endblock %}
-</div>
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+  </div>
 
+  <header class="navbar">
+    <div class="nav-inner">
+      <a href="{{ url_for('index') }}" class="brand">
+        <span class="brand-badge">QR</span>
+        <span>QR Studio</span>
+      </a>
+        <nav class="nav-links">
+            <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Link QR</a>
+            <a href="{{ url_for('photo_qr') }}" class="nav-link {% if request.endpoint == 'photo_qr' %}active{% endif %}">Photo QR</a>
+            <a href="{{ url_for('video_qr') }}" class="nav-link {% if request.endpoint == 'video_qr' %}active{% endif %}">Video QR</a>
+            <a href="{{ url_for('doc_qr') }}" class="nav-link {% if request.endpoint == 'doc_qr' %}active{% endif %}">Doc QR</a>
+            <a href="{{ url_for('about') }}" class="nav-link {% if request.endpoint == 'about' %}active{% endif %}">About</a>
+            {% if session.get('is_admin') %}
+                <a href="{{ url_for('admin_dashboard') }}" class="nav-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">Admin</a>
+                <form action="{{ url_for('admin_logout') }}" method="POST" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="btn-ghost">Logout</button>
+                </form>
+            {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-stack" id="flashStack">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">
+              <span>{{ message }}</span>
+              <button type="button" class="flash-close" aria-label="Dismiss">&times;</button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="anim-enter">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

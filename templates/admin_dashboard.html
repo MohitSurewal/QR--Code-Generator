@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard — QR Studio{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Admin Upload &amp; QR Studio</h1>
+  <p class="subtitle">
+    Upload links, photos, videos, or documents to Cloudinary and store metadata in Firestore.
+  </p>
+
+  <form
+    method="POST"
+    action="{{ url_for('admin_dashboard') }}"
+    enctype="multipart/form-data"
+    data-loading-form
+  >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+    <div class="field">
+      <label for="upload_type">Content Type</label>
+      <select id="upload_type" name="upload_type" required>
+        <option value="link" selected>Link (URL)</option>
+        <option value="photo">Photo (Image → Cloudinary)</option>
+        <option value="video">Video (Video → Cloudinary)</option>
+        <option value="doc">Document (Word, PDF, XML, PPT → Cloudinary)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="title">Title / Label (Saved in Firestore Metadata)</label>
+      <input
+        type="text"
+        id="title"
+        name="title"
+        placeholder="e.g., Event Flyer or Product Demo"
+      />
+    </div>
+
+    <div class="field" id="section-link">
+      <label for="admin_url">Target URL</label>
+      <input
+        type="url"
+        id="admin_url"
+        name="url"
+        placeholder="https://example.com"
+      />
+    </div>
+
+    <div class="field" id="section-media" style="display: none;">
+      <label id="media-label">Select Photo or Video</label>
+      <div class="dropzone" data-dropzone data-preview-id="adminMediaPreview">
+        <input
+          type="file"
+          id="media_file"
+          name="media_file"
+          accept="image/*,video/*"
+        />
+        <p><strong>Click to choose</strong> or drag and drop a photo or video</p>
+        <p class="subtitle" style="margin: 6px 0 0; font-size: 0.85rem;" data-file-name>
+          Images &amp; Videos supported
+        </p>
+      </div>
+      <div id="adminMediaPreview" class="preview-box"></div>
+    </div>
+
+    <div class="field" id="section-doc" style="display: none;">
+      <label for="doc_file">Select Document (WORD, PDF, XML, PPT)</label>
+      <div class="dropzone" data-dropzone data-preview-id="adminDocPreview">
+        <input
+          type="file"
+          id="doc_file"
+          name="doc_file"
+          accept=".doc,.docx,.pdf,.xml,.ppt,.pptx"
+        />
+        <p><strong>Click to choose</strong> or drag and drop a document</p>
+        <p class="subtitle" style="margin: 6px 0 0; font-size: 0.85rem;" data-file-name>
+          .doc, .docx, .pdf, .xml, .ppt, .pptx
+        </p>
+      </div>
+      <div id="adminDocPreview" class="preview-box"></div>
+    </div>
+
+    <button
+      type="submit"
+      class="btn-primary"
+      data-loading-text="Saving &amp; generating QR..."
+    >
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="btn-label">Generate &amp; Save Metadata</span>
+    </button>
+  </form>
+
+  {% if qr_uri %}
+    <div class="qr-result qr-pop">
+      <div class="qr-frame">
+        <img src="{{ qr_uri }}" alt="Generated Admin QR Code" />
+      </div>
+
+      {% if result_url %}
+        <div class="url-pill">{{ result_url }}</div>
+      {% endif %}
+
+      <div class="actions-row">
+        <a
+          href="{{ qr_uri }}"
+          download="admin-qr-code.png"
+          class="btn-primary"
+        >
+          Download QR PNG
+        </a>
+        {% if result_url %}
+          <button
+            type="button"
+            class="btn-secondary"
+            data-copy-url="{{ result_url }}"
+          >
+            Copy URL
+          </button>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const typeSelect = document.getElementById("upload_type");
+    const linkSec = document.getElementById("section-link");
+    const mediaSec = document.getElementById("section-media");
+    const docSec = document.getElementById("section-doc");
+    const mediaInput = document.getElementById("media_file");
+    const mediaLabel = document.getElementById("media-label");
+
+    function syncFields() {
+      const val = typeSelect.value;
+      linkSec.style.display = val === "link" ? "block" : "none";
+      mediaSec.style.display = (val === "photo" || val === "video") ? "block" : "none";
+      docSec.style.display = val === "doc" ? "block" : "none";
+
+      if (val === "photo") {
+        mediaInput.accept = "image/*";
+        mediaLabel.textContent = "Select Photo (Uploaded to Cloudinary)";
+      } else if (val === "video") {
+        mediaInput.accept = "video/*";
+        mediaLabel.textContent = "Select Video (Uploaded to Cloudinary)";
+      }
+    }
+
+    typeSelect.addEventListener("change", syncFields);
+    syncFields();
+  });
+</script>
+{% endblock %}

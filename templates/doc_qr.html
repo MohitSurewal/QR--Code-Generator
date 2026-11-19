@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Document to QR Code — QR Studio{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Document to QR Code</h1>
+  <p class="subtitle">
+    Upload Word (.doc, .docx), PDF (.pdf), XML (.xml), or PowerPoint (.ppt, .pptx) files to generate a persistent QR code.
+  </p>
+
+  <form
+    method="POST"
+    action="{{ url_for('doc_qr') }}"
+    enctype="multipart/form-data"
+    data-loading-form
+  >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+    <div class="field">
+      <label>Select or Drop Document</label>
+      <div class="dropzone" data-dropzone data-preview-id="docPreview">
+        <input
+          type="file"
+          id="document"
+          name="document"
+          accept=".doc,.docx,.pdf,.xml,.ppt,.pptx,application/pdf,application/xml,text/xml,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          required
+        />
+        <p><strong>Click to choose</strong> or drag and drop a document here</p>
+        <p class="subtitle" style="margin: 6px 0 0; font-size: 0.85rem;" data-file-name>
+          WORD (.doc, .docx), PDF (.pdf), XML (.xml), PPT (.ppt, .pptx)
+        </p>
+      </div>
+      <div id="docPreview" class="preview-box"></div>
+    </div>
+
+    <button
+      type="submit"
+      class="btn-primary"
+      data-loading-text="Uploading document..."
+    >
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="btn-label">Upload &amp; Generate QR</span>
+    </button>
+  </form>
+
+  {% if qr_uri %}
+    <div class="qr-result qr-pop">
+      <div class="qr-frame">
+        <img src="{{ qr_uri }}" alt="Generated Document QR Code" />
+      </div>
+
+      {% if doc_ext %}
+        <div class="url-pill">Format: <strong>{{ doc_ext }}</strong></div>
+      {% endif %}
+
+      {% if doc_url %}
+        <div class="url-pill">{{ doc_url }}</div>
+      {% endif %}
+
+      <div class="actions-row">
+        <a
+          href="{{ qr_uri }}"
+          download="document-qr-code.png"
+          class="btn-primary"
+        >
+          Download QR PNG
+        </a>
+        {% if doc_url %}
+          <a
+            href="{{ doc_url }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-secondary"
+          >
+            Open File
+          </a>
+          <button
+            type="button"
+            class="btn-secondary"
+            data-copy-url="{{ doc_url }}"
+          >
+            Copy File URL
+          </button>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

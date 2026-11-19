@@ -1,31 +1,64 @@
 {% extends "base.html" %}
 
+{% block title %}Link to QR Code — QR Studio{% endblock %}
+
 {% block content %}
+<section class="card">
+  <h1>Generate a Link QR Code</h1>
+  <p class="subtitle">
+    Paste any permanent link to generate a crisp, long-lasting QR code instantly. No login required.
+  </p>
 
-<div class="card">
-    <h2>QR Code Generator 〽️</h2>
+  <form method="POST" action="{{ url_for('index') }}" data-loading-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
-    <form action="/generate" method="POST" enctype="multipart/form-data">
-        
-        <input type="text" name="text" placeholder="Enter link or text"><br><br>
-        <input type="file" name="file"><br><br>
-
-        <button type="submit">Generate QR</button>
-    </form>
-
-    {% if qr_image %}
-    <div class="qr-box">
-        <h3>Preview</h3>
-        <img src="{{ url_for('static', filename='qr_codes/' + qr_image) }}" width="200">
-        <p>{{ data }}</p>
-
-        <a href="{{ url_for('static', filename='qr_codes/' + qr_image) }}" download>
-            <button>Download QR</button>
-        </a>
+    <div class="field">
+      <label for="url">Target URL</label>
+      <input
+        type="url"
+        id="url"
+        name="url"
+        placeholder="https://example.com"
+        value="{{ target_url or '' }}"
+        required
+      />
     </div>
-    {% endif %}
-<br><p class="text-center"></p>© 2026 SUREWAL.TECH. All rights reserved.</p>
-    <br><p class="text-center"></p>Mohit Surewal</p>
-</div>
 
+    <button
+      type="submit"
+      class="btn-primary"
+      data-loading-text="Generating QR..."
+    >
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="btn-label">Generate QR Code</span>
+    </button>
+  </form>
+
+  {% if qr_uri %}
+    <div class="qr-result qr-pop">
+      <div class="qr-frame">
+        <img src="{{ qr_uri }}" alt="Generated Link QR Code" />
+      </div>
+
+      <div class="url-pill">{{ target_url }}</div>
+
+      <div class="actions-row">
+        <a
+          href="{{ qr_uri }}"
+          download="link-qr-code.png"
+          class="btn-primary"
+        >
+          Download QR PNG
+        </a>
+        <button
+          type="button"
+          class="btn-secondary"
+          data-copy-url="{{ target_url }}"
+        >
+          Copy Link
+        </button>
+      </div>
+    </div>
+  {% endif %}
+</section>
 {% endblock %}

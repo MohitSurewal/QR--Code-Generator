@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Sign In — QR Studio{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Admin Sign In</h1>
+  <p class="subtitle">
+    Sign in to upload links, photos, videos, or documents to Cloudinary and save metadata to Firestore.
+  </p>
+
+  <form method="POST" action="{{ url_for('admin_login') }}" data-loading-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+    <div class="field">
+      <label for="username">Admin Username</label>
+      <input
+        type="text"
+        id="username"
+        name="username"
+        autocomplete="username"
+        required
+      />
+    </div>
+
+    <div class="field">
+      <label for="password">Admin Password</label>
+      <input
+        type="password"
+        id="password"
+        name="password"
+        autocomplete="current-password"
+        required
+      />
+    </div>
+
+    <button
+      type="submit"
+      class="btn-primary"
+      data-loading-text="Signing in..."
+    >
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="btn-label">Sign In</span>
+    </button>
+  </form>
+</section>
+{% endblock %}

@@ -1,14 +1,33 @@
 {% extends "base.html" %}
 
+{% block title %}About — QR Studio{% endblock %}
+
 {% block content %}
+<section class="card">
+  <h1>About QR Studio</h1>
+  <p class="subtitle">
+    A fast, no-login QR code generator built with Flask, designed for long-lasting QR codes and user privacy.
+  </p>
 
-<div class="card">
-    <h2>About Us</h2>
-    <h2> this app can only for positive use .Do Not use this Web app for anything WRONG!</h2>
-    <p>
-        This QR Code Generator allows users to create QR codes for links,
-        text, and files like PDFs, images, and documents.
+  <div class="field">
+    <h3>What You Can Generate</h3>
+    <ul style="color: var(--muted); line-height: 1.7; padding-left: 20px; margin: 8px 0 0;">
+      <li><strong>Link QR:</strong> Turn any web URL into a scannable QR code immediately.</li>
+      <li><strong>Photo QR:</strong> Upload images to Cloudinary and get a persistent QR code.</li>
+      <li><strong>Video QR:</strong> Upload videos to Cloudinary and generate a shareable QR code.</li>
+      <li><strong>Document QR:</strong> Upload Word (<code>.doc</code>, <code>.docx</code>), PDF (<code>.pdf</code>), XML (<code>.xml</code>), or PowerPoint (<code>.ppt</code>, <code>.pptx</code>) files for QR access.</li>
+    </ul>
+  </div>
+
+  <div class="field">
+    <h3>Long-Lasting &amp; Privacy-First</h3>
+    <p class="subtitle" style="margin: 8px 0 0;">
+      QR images are rendered directly in memory as PNGs rather than relying on temporary local server files, while uploaded media is hosted on Cloudinary. All forms are protected with CSRF tokens, and user uploads are never listed publicly.
     </p>
-</div>
+  </div>
 
+  <div class="actions-row" style="justify-content: flex-start; margin-top: 24px;">
+    <a href="{{ url_for('index') }}" class="btn-primary">Create a QR Code</a>
+  </div>
+</section>
 {% endblock %}
