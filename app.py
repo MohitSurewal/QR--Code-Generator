@@ -571,6 +571,10 @@ def file_too_large(_err):
     flash(f"Uploaded file exceeds the {max_mb} MB limit.", "error")
     return redirect(request.referrer or url_for("index"))
 
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
 
 @app.errorhandler(400)
 def bad_request_or_csrf(err):
