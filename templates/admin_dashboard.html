@@ -123,9 +123,9 @@
     {% endif %}
 
     <div class="qr-result" style="text-align: left;">
-      <h2 style="margin: 0 0 6px; font-size: 1.25rem;">Photo QR Metadata</h2>
+      <h2 style="margin: 0 0 6px; font-size: 1.25rem;">Photo &amp; Video QR Metadata</h2>
       <p class="subtitle" style="margin: 0 0 16px; font-size: 0.9rem;">
-        Visible only to authenticated admins—shows photo QR records stored in Firestore.
+        Visible only to authenticated admins—shows photo and video QR records stored in Firestore.
       </p>
 
       {% if photo_metadata %}
@@ -134,11 +134,11 @@
             <thead>
               <tr style="border-bottom: 1px solid var(--card-border); color: var(--muted); text-align: left;">
                 <th style="padding: 10px 8px;">Source / By</th>
-                <th style="padding: 10px 8px;">Title</th>
+                <th style="padding: 10px 8px;">Type &amp; Title</th>
                 <th style="padding: 10px 8px;">Format / Size</th>
                 <th style="padding: 10px 8px;">Cloudinary Folder</th>
                 <th style="padding: 10px 8px;">Created (UTC)</th>
-                <th style="padding: 10px 8px;">Photo</th>
+                <th style="padding: 10px 8px;">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -150,7 +150,10 @@
                       <div style="color: var(--muted); font-size: 0.78rem;">{{ item.created_by }}</div>
                     {% endif %}
                   </td>
-                  <td style="padding: 10px 8px;">{{ item.title }}</td>
+                  <td style="padding: 10px 8px;">
+                    <strong>{{ item.media_type }}</strong>
+                    <div style="color: var(--muted); font-size: 0.82rem;">{{ item.title }}</div>
+                  </td>
                   <td style="padding: 10px 8px;">
                     {{ item.format }}
                     {% if item.bytes %}
@@ -165,12 +168,14 @@
                     {% else %}
                       —
                     {% endif %}
-                    <form method="POST" action="{{ url_for('admin_delete_photo') }}" class="inline-form" style="margin-left: 6px;" onsubmit="return confirm('Remove this photo QR record and media?');">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                      <input type="hidden" name="collection" value="{{ item.collection }}" />
-                      <input type="hidden" name="doc_id" value="{{ item.id }}" />
-                      <button type="submit" class="btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;">Remove</button>
-                    </form>
+                    {% if item.collection and item.id %}
+                      <form method="POST" action="{{ url_for('admin_delete_photo') }}" class="inline-form" style="margin-left: 6px;" onsubmit="return confirm('Remove this QR record and media?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <input type="hidden" name="collection" value="{{ item.collection }}" />
+                        <input type="hidden" name="doc_id" value="{{ item.id }}" />
+                        <button type="submit" class="btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;">Remove</button>
+                      </form>
+                    {% endif %}
                   </td>
                 </tr>
               {% endfor %}
@@ -178,7 +183,7 @@
           </table>
         </div>
       {% else %}
-        <p class="subtitle" style="margin: 0;">No photo QR metadata found yet.</p>
+        <p class="subtitle" style="margin: 0;">No photo or video QR metadata found yet.</p>
       {% endif %}
     </div>
   </section>
