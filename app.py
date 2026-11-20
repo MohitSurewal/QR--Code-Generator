@@ -1,189 +1,586 @@
+import base64
+import io
+import json
 import os
-from flask import Flask, render_template, request, send_file
+from datetime import datetime, timezone
+
+import cloudinary
+import cloudinary.uploader
+import firebase_admin
 import qrcode
-from werkzeug.utils import secure_filename
-import random
-from flask import session
+from dotenv import load_dotenv
+from firebase_admin import credentials, firestore
+from flask import (
+    Flask,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+from flask_wtf.csrf import CSRFProtect
+from werkzeug.security import check_password_hash, generate_password_hash
+
+# Loads local .env if present; on Render, environment variables come from Render Dashboard
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = '*************'  
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# --- Security & Upload Settings (All via Environment Variables) ---
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-fallback-secret-change-me")
+max_mb = int(os.environ.get("MAX_UPLOAD_MB", "100"))
+app.config["MAX_CONTENT_LENGTH"] = max_mb * 1024 * 1024
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("FLASK_ENV") == "production"
 
-UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
-QR_FOLDER = os.path.join(BASE_DIR, 'static/qr_codes')
+csrf = CSRFProtect(app)
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(QR_FOLDER, exist_ok=True)
+# --- Admin Credentials (From Environment Variables) ---
+ADMIN_USERNAME = (os.environ.get("ADMIN_USERNAME") or "admin").strip()
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or "Admin@12345"
+ADMIN_PASSWORD_HASH = generate_password_hash(ADMIN_PASSWORD)
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# --- Cloudinary Configuration (From Environment Variables) ---
+CLOUDINARY_CLOUD_NAME = (os.environ.get("CLOUDINARY_CLOUD_NAME") or "").strip()
+CLOUDINARY_API_KEY = (os.environ.get("CLOUDINARY_API_KEY") or "").strip()
+CLOUDINARY_API_SECRET = (os.environ.get("CLOUDINARY_API_SECRET") or "").strip()
 
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/admin/messages')
-def view_messages():
-    if request.args.get("key") != "**********":
-        return "Unauthorized ❌"
-
-    messages = []
-
-    try:
-        file_path = os.path.join(BASE_DIR, "data.txt")
-        with open(file_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-
-            for i, line in enumerate(lines):
-                parts = line.strip().split("|")
-                if len(parts) == 3:
-                    messages.append({
-                        "id": i,
-                        "name": parts[0],
-                        "email": parts[1],
-                        "message": parts[2]
-                    })
-    except:
-        pass
-
-    return render_template("messages.html", messages=messages)
-
-@app.route('/delete/<int:msg_id>')
-def delete_message(msg_id):
-    try:
-        file_path = os.path.join(BASE_DIR, "data.txt")
-
-        with open(file_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            for i, line in enumerate(lines):
-                if i != msg_id:
-                    f.write(line)
-
-    except Exception as e:
-        return f"Error: {e}"
-
-    return "<h3>Deleted ✅</h3><a href='/admin/messages?key=************'>Go Back</a>"
-
-@app.route('/admin/files')
-def view_files():
-    if request.args.get("key") != "***********":
-        return "Unauthorized ❌"
-
-    files = []
-
-    try:
-        file_list = os.listdir(app.config['UPLOAD_FOLDER'])
-
-        for f in file_list:
-            files.append(f)
-    except:
-        pass
-
-    return render_template("files.html", files=files)
+cloudinary.config(
+    cloud_name=CLOUDINARY_CLOUD_NAME,
+    api_key=CLOUDINARY_API_KEY,
+    api_secret=CLOUDINARY_API_SECRET,
+    secure=True,
+)
 
 
-@app.route('/about')
-def about():
-    return render_template('about.html')
+def cloudinary_is_configured() -> bool:
+    return bool(CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET)
 
 
-@app.route('/services')
-def services():
-    return render_template('services.html')
-
-
-
-
-@app.route("/contact", methods=["GET", "POST"])
-def contact():
-    if request.method == "POST":
-
-        name = request.form.get("name") or ""
-        email = request.form.get("email") or ""
-        message = request.form.get("message") or ""
-        user_answer = request.form.get("captcha")
-        real_answer = session.get("captcha_answer")
-
-       
-        if not real_answer or str(user_answer) != str(real_answer):
-            num1 = random.randint(1, 10)
-            num2 = random.randint(1, 10)
-            session["captcha_answer"] = num1 + num2
-
-            return render_template(
-                "contact.html",
-                error="Wrong captcha ❌",
-                num1=num1,
-                num2=num2
-            )
-
-        
+# --- Firebase / Firestore Initialization (From Environment Variable) ---
+db = None
+if not firebase_admin._apps:
+    cred_raw = (os.environ.get("FIREBASE_CREDENTIALS_JSON") or "").strip()
+    if cred_raw:
         try:
-            file_path = os.path.join(BASE_DIR, "data.txt")
-            with open(file_path, "a", encoding="utf-8") as f:
-                 f.write(f"{name}|{email}|{message}\n")
-        except Exception as e:
-            return f"Error saving data: {e}"
+            if (cred_raw.startswith("'") and cred_raw.endswith("'")) or (
+                cred_raw.startswith('"') and cred_raw.endswith('"')
+            ):
+                cred_raw = cred_raw[1:-1]
 
-        
-        num1 = random.randint(1, 10)
-        num2 = random.randint(1, 10)
-        session["captcha_answer"] = num1 + num2
+            if not cred_raw.lstrip().startswith("{"):
+                cred_raw = base64.b64decode(cred_raw).decode("utf-8")
 
-        return render_template(
-            "contact.html",
-            success="Message saved ✅",
-            num1=num1,
-            num2=num2
-        )
+            cred_dict = json.loads(cred_raw)
 
+            if isinstance(cred_dict.get("private_key"), str):
+                cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
+
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+        except Exception as exc:
+            print(f"[Firebase Init Error] {exc}")
+
+if firebase_admin._apps:
+    try:
+        db = firestore.client()
+    except Exception as exc:
+        print(f"[Firestore Client Error] {exc}")
+
+
+# --- Cloudinary Directory Structure ---
+ROOT_CLOUDINARY_DIR = "qr generator"
+
+CLOUDINARY_FOLDERS = {
+    ("public", "photo"): f"{ROOT_CLOUDINARY_DIR}/public/photos",
+    ("public", "video"): f"{ROOT_CLOUDINARY_DIR}/public/videos",
+    ("public", "doc"): f"{ROOT_CLOUDINARY_DIR}/public/docs",
+    ("admin", "photo"): f"{ROOT_CLOUDINARY_DIR}/admin/photos",
+    ("admin", "video"): f"{ROOT_CLOUDINARY_DIR}/admin/videos",
+    ("admin", "doc"): f"{ROOT_CLOUDINARY_DIR}/admin/docs",
+}
+
+ALLOWED_DOC_EXTENSIONS = {
+    ".doc",
+    ".docx",
+    ".pdf",
+    ".xml",
+    ".ppt",
+    ".pptx",
+}
+
+
+def upload_media_to_cloudinary(file_storage, folder: str) -> dict:
+    """Upload image or video into a dedicated Cloudinary folder."""
+    if not cloudinary_is_configured():
+        raise RuntimeError("Cloudinary environment variables are missing.")
+
+    res = cloudinary.uploader.upload(
+        file_storage,
+        folder=folder,
+        resource_type="auto",
+    )
+    return {
+        "secure_url": res.get("secure_url"),
+        "public_id": res.get("public_id"),
+        "folder": folder,
+        "resource_type": res.get("resource_type"),
+        "format": res.get("format"),
+        "bytes": res.get("bytes"),
+    }
+
+
+def upload_doc_to_cloudinary(file_storage, folder: str) -> dict:
+    """Upload document (Word, PDF, XML, PPT) into a dedicated Cloudinary raw folder."""
+    if not cloudinary_is_configured():
+        raise RuntimeError("Cloudinary environment variables are missing.")
+
+    res = cloudinary.uploader.upload(
+        file_storage,
+        folder=folder,
+        resource_type="raw",
+        use_filename=True,
+        unique_filename=True,
+    )
+    return {
+        "secure_url": res.get("secure_url"),
+        "public_id": res.get("public_id"),
+        "folder": folder,
+        "resource_type": res.get("resource_type"),
+        "bytes": res.get("bytes"),
+    }
+
+
+def save_metadata_firestore(collection_name: str, data: dict) -> bool:
+    """Save metadata to Firestore without exposing any public listing route."""
+    if db is None:
+        print(f"[Firestore Warning] db is None; skipped saving to '{collection_name}'.")
+        return False
+    try:
+        payload = dict(data)
+        payload["created_at"] = datetime.now(timezone.utc)
+        db.collection(collection_name).add(payload)
+        return True
+    except Exception as exc:
+        print(f"[Firestore Write Error] collection='{collection_name}': {exc}")
+        return False
     
-    num1 = random.randint(1, 10)
-    num2 = random.randint(1, 10)
-    session["captcha_answer"] = num1 + num2
-
-    return render_template("contact.html", num1=num1, num2=num2)
-
-
-@app.route('/generate', methods=['POST'])
-def generate_qr():
-    text = request.form.get('text')
-    file = request.files.get('file')
-
-    data = ""
-
-    if file and file.filename != "":
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-
-        data = request.host_url + "uploads/" + filename
-
-    elif text:
-        data = text
-    else:
-        return "No input provided"
-
-    qr = qrcode.make(data)
-
-    qr_filename = "qr.png"
-    qr_path = os.path.join(QR_FOLDER, qr_filename)
-    qr.save(qr_path)
-
-    return render_template('index.html', qr_image=qr_filename, data=data)
+    
+    
+def _format_created_at(val) -> str:
+    if not val:
+        return "—"
+    try:
+        if hasattr(val, "to_datetime"):
+            val = val.to_datetime()
+        if isinstance(val, datetime):
+            if val.tzinfo is None:
+                val = val.replace(tzinfo=timezone.utc)
+            return val.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        return str(val)
+    except Exception:
+        return "—"
 
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_file(
-        os.path.join(app.config['UPLOAD_FOLDER'], filename),
-        as_attachment=False
+def get_photo_qr_metadata(limit: int = 50) -> list[dict]:
+    """Fetch photo QR metadata for admin dashboard only."""
+    if db is None:
+        return []
+
+    records: list[dict] = []
+
+    sources = [
+        ("public_qr_logs", "Public User"),
+        ("admin_qr_items", "Admin"),
+    ]
+
+    for col_name, default_actor in sources:
+        try:
+            docs = (
+                db.collection(col_name)
+                .where("type", "==", "photo")
+                .limit(limit)
+                .stream()
+            )
+            for doc in docs:
+                item = doc.to_dict() or {}
+                url = item.get("media_url") or item.get("url") or ""
+                records.append({
+                    "id": doc.id,
+                    "source_label": default_actor if item.get("source") != "admin" else "Admin",
+                    "title": item.get("title") or "Photo QR",
+                    "url": url,
+                    "folder": item.get("folder") or "—",
+                    "public_id": item.get("cloudinary_public_id") or item.get("public_id") or "—",
+                    "format": (item.get("format") or "—").upper(),
+                    "bytes": item.get("bytes"),
+                    "created_by": item.get("created_by") or default_actor,
+                    "created_at_str": _format_created_at(item.get("created_at")),
+                    "_sort_ts": item.get("created_at"),
+                })
+        except Exception as exc:
+            print(f"[Firestore Read Error] collection='{col_name}': {exc}")
+
+    # Sort newest first safely
+    records.sort(
+        key=lambda r: (
+            r["_sort_ts"].to_datetime()
+            if hasattr(r["_sort_ts"], "to_datetime")
+            else (r["_sort_ts"] if isinstance(r["_sort_ts"], datetime) else datetime.min.replace(tzinfo=timezone.utc))
+        ),
+        reverse=True,
+    )
+    return records[:limit]
+
+
+
+
+
+def make_qr_data_uri(payload: str) -> str:
+    """Generate a long-lasting PNG QR code in memory (no local disk files)."""
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(payload)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    encoded = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:image/png;base64,{encoded}"
+
+
+def is_admin() -> bool:
+    return (
+        session.get("is_admin") is True
+        and session.get("admin_user") == ADMIN_USERNAME
     )
 
 
+def require_admin():
+    if not is_admin():
+        session.clear()
+        flash("Please sign in as admin to access this page.", "error")
+        return redirect(url_for("admin_login"))
+    return None
+
+
+@app.after_request
+def add_security_headers(response):
+    # Prevent browser back/forward cache from showing protected admin pages after logout
+    if request.path.startswith("/admin"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+# --- Public Routes (No User Login Required) ---
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    qr_uri = None
+    target_url = None
+
+    if request.method == "POST":
+        link = (request.form.get("url") or "").strip()
+        if not (link.startswith("http://") or link.startswith("https://")):
+            flash("Please enter a valid URL starting with http:// or https://", "error")
+        else:
+            target_url = link
+            qr_uri = make_qr_data_uri(link)
+            save_metadata_firestore(
+                "public_qr_logs",
+                {
+                    "source": "public",
+                    "type": "link",
+                    "folder": "none",
+                    "target_url": link,
+                },
+            )
+
+    return render_template("index.html", qr_uri=qr_uri, target_url=target_url)
+
+
+@app.route("/photo", methods=["GET", "POST"])
+def photo_qr():
+    qr_uri = None
+    media_url = None
+
+    if request.method == "POST":
+        file = request.files.get("photo")
+        if not file or not file.filename:
+            flash("Please select a photo file.", "error")
+        elif not (file.mimetype or "").startswith("image/"):
+            flash("Only image files are allowed on the Photo QR page.", "error")
+        else:
+            try:
+                folder = CLOUDINARY_FOLDERS[("public", "photo")]
+                uploaded = upload_media_to_cloudinary(file, folder=folder)
+                media_url = uploaded["secure_url"]
+                qr_uri = make_qr_data_uri(media_url)
+                save_metadata_firestore(
+                    "public_qr_logs",
+                    {
+                        "source": "public",
+                        "type": "photo",
+                        "folder": folder,
+                        "media_url": media_url,
+                        "cloudinary_public_id": uploaded["public_id"],
+                        "format": uploaded["format"],
+                        "bytes": uploaded["bytes"],
+                    },
+                )
+            except Exception as exc:
+                flash(f"Upload failed: {exc}", "error")
+
+    return render_template("photo_qr.html", qr_uri=qr_uri, media_url=media_url)
+
+
+@app.route("/video", methods=["GET", "POST"])
+def video_qr():
+    qr_uri = None
+    media_url = None
+
+    if request.method == "POST":
+        file = request.files.get("video")
+        if not file or not file.filename:
+            flash("Please select a video file.", "error")
+        elif not (file.mimetype or "").startswith("video/"):
+            flash("Only video files are allowed on the Video QR page.", "error")
+        else:
+            folder = CLOUDINARY_FOLDERS[("public", "video")]
+            uploaded = upload_media_to_cloudinary(file, folder=folder)
+            media_url = uploaded["secure_url"]
+            qr_uri = make_qr_data_uri(media_url)
+            save_metadata_firestore(
+                "public_qr_logs",
+                {
+                    "source": "public",
+                    "type": "video",
+                    "folder": folder,
+                    "media_url": media_url,
+                    "cloudinary_public_id": uploaded["public_id"],
+                    "format": uploaded["format"],
+                    "bytes": uploaded["bytes"],
+                },
+            )
+
+    return render_template("video_qr.html", qr_uri=qr_uri, media_url=media_url)
+
+
+@app.route("/doc", methods=["GET", "POST"])
+def doc_qr():
+    qr_uri = None
+    doc_url = None
+    doc_ext = None
+
+    if request.method == "POST":
+        file = request.files.get("document")
+        if not file or not file.filename:
+            flash("Please select a Word, PDF, XML, or PowerPoint file.", "error")
+        else:
+            ext = os.path.splitext(file.filename.lower())[1]
+            if ext not in ALLOWED_DOC_EXTENSIONS:
+                flash(
+                    "Unsupported file format. Allowed: Word (.doc, .docx), PDF (.pdf), XML (.xml), PowerPoint (.ppt, .pptx).",
+                    "error",
+                )
+            else:
+                folder = CLOUDINARY_FOLDERS[("public", "doc")]
+                uploaded = upload_doc_to_cloudinary(file, folder=folder)
+                doc_url = uploaded["secure_url"]
+                doc_ext = ext.lstrip(".").upper()
+                qr_uri = make_qr_data_uri(doc_url)
+                save_metadata_firestore(
+                    "public_qr_logs",
+                    {
+                        "source": "public",
+                        "type": "document",
+                        "folder": folder,
+                        "format": doc_ext,
+                        "doc_url": doc_url,
+                        "cloudinary_public_id": uploaded["public_id"],
+                        "bytes": uploaded["bytes"],
+                    },
+                )
+
+    return render_template(
+        "doc_qr.html",
+        qr_uri=qr_uri,
+        doc_url=doc_url,
+        doc_ext=doc_ext,
+    )
+
+
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
+
+# --- Admin Routes ---
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if is_admin():
+        return redirect(url_for("admin_dashboard"))
+
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        if username == ADMIN_USERNAME and check_password_hash(ADMIN_PASSWORD_HASH, password):
+            session.clear()
+            session["is_admin"] = True
+            session["admin_user"] = username
+            return redirect(url_for("admin_dashboard"))
+        flash("Invalid admin username or password.", "error")
+
+    return render_template("admin_login.html")
+
+
+@app.route("/admin/logout", methods=["POST"])
+def admin_logout():
+    session.clear()
+    flash("You have been logged out.", "info")
+    return redirect(url_for("admin_login"))
+
+
+@app.route("/admin", methods=["GET", "POST"])
+def admin_dashboard():
+    guard = require_admin()
+    if guard:
+        return guard
+
+    qr_uri = None
+    result_url = None
+
+    if request.method == "POST":
+        upload_type = request.form.get("upload_type")
+        title = (request.form.get("title") or "").strip()
+
+        if upload_type == "link":
+            link = (request.form.get("url") or "").strip()
+            if not (link.startswith("http://") or link.startswith("https://")):
+                flash("Please enter a valid URL starting with http:// or https://", "error")
+            else:
+                result_url = link
+                qr_uri = make_qr_data_uri(link)
+                save_metadata_firestore(
+                    "admin_qr_items",
+                    {
+                        "source": "admin",
+                        "title": title,
+                        "type": "link",
+                        "folder": "none",
+                        "url": link,
+                        "created_by": session.get("admin_user"),
+                    },
+                )
+                flash("Link QR generated and metadata saved to Firestore.", "success")
+
+        elif upload_type in ("photo", "video"):
+            file = request.files.get("media_file")
+            if not file or not file.filename:
+                flash(f"Please select a {upload_type} file.", "error")
+            else:
+                try:
+                    folder = CLOUDINARY_FOLDERS[("admin", upload_type)]
+                    uploaded = upload_media_to_cloudinary(file, folder=folder)
+                    result_url = uploaded["secure_url"]
+                    qr_uri = make_qr_data_uri(result_url)
+                    save_metadata_firestore(
+                        "admin_qr_items",
+                        {
+                            "source": "admin",
+                            "title": title,
+                            "type": upload_type,
+                            "folder": folder,
+                            "url": result_url,
+                            "cloudinary_public_id": uploaded["public_id"],
+                            "format": uploaded["format"],
+                            "bytes": uploaded["bytes"],
+                            "created_by": session.get("admin_user"),
+                        },
+                    )
+                    flash(
+                        f"{upload_type.capitalize()} uploaded to Cloudinary and metadata saved to Firestore.",
+                        "success",
+                    )
+                except Exception as exc:
+                    flash(f"Upload failed: {exc}", "error")
+
+        elif upload_type == "doc":
+            file = request.files.get("doc_file")
+            if not file or not file.filename:
+                flash("Please select a Word, PDF, XML, or PowerPoint file.", "error")
+            else:
+                ext = os.path.splitext(file.filename.lower())[1]
+                if ext not in ALLOWED_DOC_EXTENSIONS:
+                    flash(
+                        "Unsupported file format. Allowed: Word (.doc, .docx), PDF (.pdf), XML (.xml), PowerPoint (.ppt, .pptx).",
+                        "error",
+                    )
+                else:
+                    try:
+                        folder = CLOUDINARY_FOLDERS[("admin", "doc")]
+                        uploaded = upload_doc_to_cloudinary(file, folder=folder)
+                        result_url = uploaded["secure_url"]
+                        doc_ext = ext.lstrip(".").upper()
+                        qr_uri = make_qr_data_uri(result_url)
+                        save_metadata_firestore(
+                            "admin_qr_items",
+                            {
+                                "source": "admin",
+                                "title": title,
+                                "type": "document",
+                                "folder": folder,
+                                "format": doc_ext,
+                                "url": result_url,
+                                "cloudinary_public_id": uploaded["public_id"],
+                                "bytes": uploaded["bytes"],
+                                "created_by": session.get("admin_user"),
+                            },
+                        )
+                        flash(
+                            "Document uploaded to Cloudinary and metadata saved to Firestore.",
+                            "success",
+                        )
+                    except Exception as exc:
+                        flash(f"Upload failed: {exc}", "error")
+
+        else:
+            flash("Please choose a valid upload type.", "error")
+
+    photo_metadata = get_photo_qr_metadata(limit=50)
+    return render_template(
+        "admin_dashboard.html",
+        qr_uri=qr_uri,
+        result_url=result_url,
+        photo_metadata=photo_metadata,
+    )
+
+
+
+@app.errorhandler(413)
+def file_too_large(_err):
+    flash(f"Uploaded file exceeds the {max_mb} MB limit.", "error")
+    return redirect(request.referrer or url_for("index"))
+
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+
+@app.errorhandler(400)
+def bad_request_or_csrf(err):
+    flash(str(getattr(err, "description", "Invalid request or expired CSRF token.")), "error")
+    return redirect(request.referrer or url_for("index"))
+
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=os.environ.get("FLASK_ENV") != "production")
     

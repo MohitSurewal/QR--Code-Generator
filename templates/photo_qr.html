@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Photo to QR Code — QR Studio{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Photo to QR Code</h1>
+  <p class="subtitle">
+    Upload a photo—it is stored persistently on Cloudinary and turned into a scannable QR code.
+  </p>
+
+  <form
+    method="POST"
+    action="{{ url_for('photo_qr') }}"
+    enctype="multipart/form-data"
+    data-loading-form
+  >
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+    <div class="field">
+      <label>Select or Drop Photo</label>
+      <div class="dropzone" data-dropzone data-preview-id="photoPreview">
+        <input
+          type="file"
+          id="photo"
+          name="photo"
+          accept="image/*"
+          required
+        />
+        <p><strong>Click to choose</strong> or drag and drop an image here</p>
+        <p class="subtitle" style="margin: 6px 0 0; font-size: 0.85rem;" data-file-name>
+          PNG, JPG, WEBP, GIF supported
+        </p>
+      </div>
+      <div id="photoPreview" class="preview-box"></div>
+    </div>
+
+    <button
+      type="submit"
+      class="btn-primary"
+      data-loading-text="Uploading photo..."
+    >
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="btn-label">Upload &amp; Generate QR</span>
+    </button>
+  </form>
+
+  {% if qr_uri %}
+    <div class="qr-result qr-pop">
+      <div class="qr-frame">
+        <img src="{{ qr_uri }}" alt="Generated Photo QR Code" />
+      </div>
+
+      {% if media_url %}
+        <div class="url-pill">{{ media_url }}</div>
+      {% endif %}
+
+      <div class="actions-row">
+        <a
+          href="{{ qr_uri }}"
+          download="photo-qr-code.png"
+          class="btn-primary"
+        >
+          Download QR PNG
+        </a>
+        {% if media_url %}
+          <button
+            type="button"
+            class="btn-secondary"
+            data-copy-url="{{ media_url }}"
+          >
+            Copy Photo URL
+          </button>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
