@@ -62,7 +62,7 @@ LOGIN_LOCK_SECONDS = 120
 
 
 def _check_login_lock() -> int:
-    """Return remaining lock seconds if admin login is temporarily locked."""
+
     locked_until = session.get("admin_locked_until", 0)
     now = time.time()
     if locked_until and now < locked_until:
@@ -267,6 +267,35 @@ def get_photo_qr_metadata(limit: int = 50) -> list[dict]:
 
 
 
+def delete_photo_qr_record(collection_name: str, doc_id: str) -> tuple[bool, str]:
+    """Delete a photo QR record from Firestore and its asset from Cloudinary if present."""
+    if db is None:
+        return False, "Firestore is not connected."
+    if collection_name not in ("public_qr_logs", "admin_qr_items"):
+        return False, "Invalid metadata collection."
+
+    try:
+        doc_ref = db.collection(collection_name).document(doc_id)
+        snap = doc_ref.get()
+        if not snap.exists:
+            return False, "Record not found."
+
+        data = snap.to_dict() or {}
+        public_id = data.get("cloudinary_public_id") or data.get("public_id")
+        folder = data.get("folder") or ""
+
+        if public_id and cloudinary_is_configured():
+            resource_type = "video" if "videos" in folder else "image"
+            try:
+                cloudinary.uploader.destroy(public_id, resource_type=resource_type)
+            except Exception as c_exc:
+                print(f"[Cloudinary Delete Warning] {c_exc}")
+
+        doc_ref.delete()
+        return True, "Photo QR metadata and associated media removed."
+    except Exception as exc:
+        print(f"[Firestore Delete Error] {exc}")
+        return False, f"Failed to delete record: {exc}"
 
 
 def make_qr_data_uri(payload: str) -> str:
@@ -605,15 +634,43 @@ def admin_dashboard():
     )
 
 
+@app.route("/admin/delete-photo", methods=["POST"])
+def admin_delete_photo():
+    guard = require_admin()
+    if guard:
+        return guard
+
+    collection_name = (request.form.get("collection") or "").strip()
+    doc_id = (request.form.get("doc_id") or "").strip()
+    if not collection_name or not doc_id:
+        flash("Missing record details for removal.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    ok, msg = delete_photo_qr_record(collection_name, doc_id)
+    flash(msg, "success" if ok else "error")
+    return redirect(url_for("admin_dashboard"))
+
+
+
 
 @app.errorhandler(413)
 def file_too_large(_err):
     flash(f"Uploaded file exceeds the {max_mb} MB limit.", "error")
     return redirect(request.referrer or url_for("index"))
 
+
+
 @app.route("/privacy")
 def privacy():
-    return render_template("privacy.html")
+    contact_email = (os.environ.get("CONTACT_EMAIL") or "support@example.com").strip()
+    return render_template("privacy.html", contact_email=contact_email)
+
+@app.route("/terms")
+def terms():
+    contact_email = (os.environ.get("CONTACT_EMAIL") or "support@example.com").strip()
+    return render_template("terms.html", contact_email=contact_email)
+
+
 
 
 @app.errorhandler(400)
