@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy Policy — QR Studio{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Privacy Policy</h1>
+  <p class="subtitle">
+    How QR Studio Tech handles your links, uploaded files, QR codes, and metadata.
+  </p>
+
+  <div class="field">
+    <h3>1. No User Account Required</h3>
+    <p class="subtitle" style="margin: 6px 0 0;">
+      Public visitors can generate QR codes for links, photos, videos, and supported documents without creating a user account. We do not expose any public list or search feed of other users' links or uploads.
+    </p>
+  </div>
+
+  <div class="field">
+    <h3>2. Storage &amp; Long-Lasting QR Codes</h3>
+    <p class="subtitle" style="margin: 6px 0 0;">
+      QR code PNG images are generated in memory rather than stored permanently on local server disk. Uploaded photos, videos, and documents are hosted on Cloudinary so your QR links remain accessible, while upload metadata (such as file type, folder path, size, and timestamp) is recorded in Firestore for operational and admin oversight.
+    </p>
+  </div>
+
+  <div class="field">
+    <h3>3. Security &amp; Access Control</h3>
+    <p class="subtitle" style="margin: 6px 0 0;">
+      All form submissions are protected with CSRF tokens, session cookies are restricted, and admin features are protected behind authenticated admin credentials.
+    </p>
+  </div>
+
+  <div class="field" style="margin-bottom: 0;">
+    <h3>4. Copyright &amp; Creator</h3>
+    <p class="subtitle" style="margin: 6px 0 0;">
+      &copy; 2026 <strong>QR Studio Tech</strong>. All rights reserved. Created by <strong>Mohit Surewal</strong>.
+    </p>
+  </div>
+</section>
+{% endblock %}
