@@ -165,6 +165,12 @@
                     {% else %}
                       —
                     {% endif %}
+                    <form method="POST" action="{{ url_for('admin_delete_photo') }}" class="inline-form" style="margin-left: 6px;" onsubmit="return confirm('Remove this photo QR record and media?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <input type="hidden" name="collection" value="{{ item.collection }}" />
+                      <input type="hidden" name="doc_id" value="{{ item.id }}" />
+                      <button type="submit" class="btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;">Remove</button>
+                    </form>
                   </td>
                 </tr>
               {% endfor %}
