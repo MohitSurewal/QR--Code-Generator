@@ -25,13 +25,21 @@
     </div>
 
     <button
-      type="submit"
-      class="btn-primary"
-      data-loading-text="Generating QR..."
-    >
-      <span class="spinner" aria-hidden="true"></span>
-      <span class="btn-label">Generate QR Code</span>
-    </button>
+          type="submit"
+          class="btn-primary"
+          data-loading-text="Generating QR..."
+        >
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="btn-label">Generate QR Code</span>
+        </button>
+
+        <p class="subtitle" style="margin: 12px 0 0; font-size: 0.82rem; text-align: center;">
+          By generating, you agree to our
+          <a href="{{ url_for('terms') }}" style="color: var(--text); text-decoration: underline;">Terms</a>
+          &amp;
+          <a href="{{ url_for('privacy') }}" style="color: var(--text); text-decoration: underline;">Privacy Policy</a>.
+        </p>
+      
   </form>
 
   {% if qr_uri %}
