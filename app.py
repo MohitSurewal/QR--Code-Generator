@@ -166,6 +166,76 @@ def save_metadata_firestore(collection_name: str, data: dict) -> bool:
     except Exception as exc:
         print(f"[Firestore Write Error] collection='{collection_name}': {exc}")
         return False
+    
+    
+    
+def _format_created_at(val) -> str:
+    if not val:
+        return "—"
+    try:
+        if hasattr(val, "to_datetime"):
+            val = val.to_datetime()
+        if isinstance(val, datetime):
+            if val.tzinfo is None:
+                val = val.replace(tzinfo=timezone.utc)
+            return val.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        return str(val)
+    except Exception:
+        return "—"
+
+
+def get_photo_qr_metadata(limit: int = 50) -> list[dict]:
+    """Fetch photo QR metadata for admin dashboard only."""
+    if db is None:
+        return []
+
+    records: list[dict] = []
+
+    sources = [
+        ("public_qr_logs", "Public User"),
+        ("admin_qr_items", "Admin"),
+    ]
+
+    for col_name, default_actor in sources:
+        try:
+            docs = (
+                db.collection(col_name)
+                .where("type", "==", "photo")
+                .limit(limit)
+                .stream()
+            )
+            for doc in docs:
+                item = doc.to_dict() or {}
+                url = item.get("media_url") or item.get("url") or ""
+                records.append({
+                    "id": doc.id,
+                    "source_label": default_actor if item.get("source") != "admin" else "Admin",
+                    "title": item.get("title") or "Photo QR",
+                    "url": url,
+                    "folder": item.get("folder") or "—",
+                    "public_id": item.get("cloudinary_public_id") or item.get("public_id") or "—",
+                    "format": (item.get("format") or "—").upper(),
+                    "bytes": item.get("bytes"),
+                    "created_by": item.get("created_by") or default_actor,
+                    "created_at_str": _format_created_at(item.get("created_at")),
+                    "_sort_ts": item.get("created_at"),
+                })
+        except Exception as exc:
+            print(f"[Firestore Read Error] collection='{col_name}': {exc}")
+
+    # Sort newest first safely
+    records.sort(
+        key=lambda r: (
+            r["_sort_ts"].to_datetime()
+            if hasattr(r["_sort_ts"], "to_datetime")
+            else (r["_sort_ts"] if isinstance(r["_sort_ts"], datetime) else datetime.min.replace(tzinfo=timezone.utc))
+        ),
+        reverse=True,
+    )
+    return records[:limit]
+
+
+
 
 
 def make_qr_data_uri(payload: str) -> str:
@@ -187,8 +257,28 @@ def make_qr_data_uri(payload: str) -> str:
 
 
 def is_admin() -> bool:
-    return session.get("is_admin") is True
+    return (
+        session.get("is_admin") is True
+        and session.get("admin_user") == ADMIN_USERNAME
+    )
 
+
+def require_admin():
+    if not is_admin():
+        session.clear()
+        flash("Please sign in as admin to access this page.", "error")
+        return redirect(url_for("admin_login"))
+    return None
+
+
+@app.after_request
+def add_security_headers(response):
+    # Prevent browser back/forward cache from showing protected admin pages after logout
+    if request.path.startswith("/admin"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 # --- Public Routes (No User Login Required) ---
 
@@ -362,8 +452,9 @@ def admin_logout():
 
 @app.route("/admin", methods=["GET", "POST"])
 def admin_dashboard():
-    if not is_admin():
-        return redirect(url_for("admin_login"))
+    guard = require_admin()
+    if guard:
+        return guard
 
     qr_uri = None
     result_url = None
@@ -397,28 +488,31 @@ def admin_dashboard():
             if not file or not file.filename:
                 flash(f"Please select a {upload_type} file.", "error")
             else:
-                folder = CLOUDINARY_FOLDERS[("admin", upload_type)]
-                uploaded = upload_media_to_cloudinary(file, folder=folder)
-                result_url = uploaded["secure_url"]
-                qr_uri = make_qr_data_uri(result_url)
-                save_metadata_firestore(
-                    "admin_qr_items",
-                    {
-                        "source": "admin",
-                        "title": title,
-                        "type": upload_type,
-                        "folder": folder,
-                        "url": result_url,
-                        "cloudinary_public_id": uploaded["public_id"],
-                        "format": uploaded["format"],
-                        "bytes": uploaded["bytes"],
-                        "created_by": session.get("admin_user"),
-                    },
-                )
-                flash(
-                    f"{upload_type.capitalize()} uploaded to Cloudinary and metadata saved to Firestore.",
-                    "success",
-                )
+                try:
+                    folder = CLOUDINARY_FOLDERS[("admin", upload_type)]
+                    uploaded = upload_media_to_cloudinary(file, folder=folder)
+                    result_url = uploaded["secure_url"]
+                    qr_uri = make_qr_data_uri(result_url)
+                    save_metadata_firestore(
+                        "admin_qr_items",
+                        {
+                            "source": "admin",
+                            "title": title,
+                            "type": upload_type,
+                            "folder": folder,
+                            "url": result_url,
+                            "cloudinary_public_id": uploaded["public_id"],
+                            "format": uploaded["format"],
+                            "bytes": uploaded["bytes"],
+                            "created_by": session.get("admin_user"),
+                        },
+                    )
+                    flash(
+                        f"{upload_type.capitalize()} uploaded to Cloudinary and metadata saved to Firestore.",
+                        "success",
+                    )
+                except Exception as exc:
+                    flash(f"Upload failed: {exc}", "error")
 
         elif upload_type == "doc":
             file = request.files.get("doc_file")
@@ -432,34 +526,43 @@ def admin_dashboard():
                         "error",
                     )
                 else:
-                    folder = CLOUDINARY_FOLDERS[("admin", "doc")]
-                    uploaded = upload_doc_to_cloudinary(file, folder=folder)
-                    result_url = uploaded["secure_url"]
-                    doc_ext = ext.lstrip(".").upper()
-                    qr_uri = make_qr_data_uri(result_url)
-                    save_metadata_firestore(
-                        "admin_qr_items",
-                        {
-                            "source": "admin",
-                            "title": title,
-                            "type": "document",
-                            "folder": folder,
-                            "format": doc_ext,
-                            "url": result_url,
-                            "cloudinary_public_id": uploaded["public_id"],
-                            "bytes": uploaded["bytes"],
-                            "created_by": session.get("admin_user"),
-                        },
-                    )
-                    flash(
-                        "Document uploaded to Cloudinary and metadata saved to Firestore.",
-                        "success",
-                    )
+                    try:
+                        folder = CLOUDINARY_FOLDERS[("admin", "doc")]
+                        uploaded = upload_doc_to_cloudinary(file, folder=folder)
+                        result_url = uploaded["secure_url"]
+                        doc_ext = ext.lstrip(".").upper()
+                        qr_uri = make_qr_data_uri(result_url)
+                        save_metadata_firestore(
+                            "admin_qr_items",
+                            {
+                                "source": "admin",
+                                "title": title,
+                                "type": "document",
+                                "folder": folder,
+                                "format": doc_ext,
+                                "url": result_url,
+                                "cloudinary_public_id": uploaded["public_id"],
+                                "bytes": uploaded["bytes"],
+                                "created_by": session.get("admin_user"),
+                            },
+                        )
+                        flash(
+                            "Document uploaded to Cloudinary and metadata saved to Firestore.",
+                            "success",
+                        )
+                    except Exception as exc:
+                        flash(f"Upload failed: {exc}", "error")
 
         else:
             flash("Please choose a valid upload type.", "error")
 
-    return render_template("admin_dashboard.html", qr_uri=qr_uri, result_url=result_url)
+    photo_metadata = get_photo_qr_metadata(limit=50)
+    return render_template(
+        "admin_dashboard.html",
+        qr_uri=qr_uri,
+        result_url=result_url,
+        photo_metadata=photo_metadata,
+    )
 
 
 
