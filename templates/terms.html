@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Terms of Use &amp; Takedown Policy — QR Studio{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h1>Terms of Use &amp; Takedown Policy</h1>
+    <p class="subtitle">
+      Rules for generating QR codes and uploading links, photos, videos, or documents on QR Studio.
+    </p>
+
+    <div class="field">
+      <h3>1. User Responsibility &amp; Rights</h3>
+      <p class="subtitle" style="margin: 6px 0 0;">
+        By generating a QR code or uploading a file, you confirm that you own or have legal permission to share the target URL or file, and that your content does not infringe third-party copyrights, trademarks, or privacy rights.
+      </p>
+    </div>
+
+    <div class="field">
+      <h3>2. Prohibited Content</h3>
+      <p class="subtitle" style="margin: 6px 0 0;">
+        Uploading or linking to illegal material, non-consensual or private/sensitive personal media, malware/phishing links, pirated files, or harmful/abusive content is strictly prohibited.
+      </p>
+    </div>
+
+    <div class="field">
+      <h3>3. Copyright &amp; Abuse Takedown Requests</h3>
+      <p class="subtitle" style="margin: 6px 0 0;">
+        If you believe a QR code or uploaded file violates your copyright, privacy, or applicable law, please send a removal request with the URL or details to
+        <strong>{{ contact_email }}</strong>. Valid requests are reviewed and removed where applicable.
+      </p>
+    </div>
+
+    <div class="field" style="margin-bottom: 0;">
+      <h3>4. Service Availability &amp; Copyright Notice</h3>
+      <p class="subtitle" style="margin: 6px 0 0;">
+        Services are provided on an as-available basis. &copy; 2026 <strong>QR Studio Tech</strong>. All rights reserved. Created by <strong>Mohit Surewal</strong>.
+      </p>
+    </div>
+  </section>
+{% endblock %}
