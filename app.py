@@ -2,8 +2,8 @@ import base64
 import io
 import json
 import os
-from datetime import datetime, timezone
-
+from datetime import datetime, time, timezone
+import time
 import cloudinary
 import cloudinary.uploader
 import firebase_admin
@@ -22,12 +22,12 @@ from flask import (
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import check_password_hash, generate_password_hash
 
-# Loads local .env if present; on Render, environment variables come from Render Dashboard
+
 load_dotenv()
 
 app = Flask(__name__)
 
-# --- Security & Upload Settings (All via Environment Variables) ---
+
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-fallback-secret-change-me")
 max_mb = int(os.environ.get("MAX_UPLOAD_MB", "100"))
 app.config["MAX_CONTENT_LENGTH"] = max_mb * 1024 * 1024
@@ -37,12 +37,12 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get("FLASK_ENV") == "production
 
 csrf = CSRFProtect(app)
 
-# --- Admin Credentials (From Environment Variables) ---
+
 ADMIN_USERNAME = (os.environ.get("ADMIN_USERNAME") or "admin").strip()
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or "Admin@12345"
 ADMIN_PASSWORD_HASH = generate_password_hash(ADMIN_PASSWORD)
 
-# --- Cloudinary Configuration (From Environment Variables) ---
+
 CLOUDINARY_CLOUD_NAME = (os.environ.get("CLOUDINARY_CLOUD_NAME") or "").strip()
 CLOUDINARY_API_KEY = (os.environ.get("CLOUDINARY_API_KEY") or "").strip()
 CLOUDINARY_API_SECRET = (os.environ.get("CLOUDINARY_API_SECRET") or "").strip()
@@ -55,11 +55,42 @@ cloudinary.config(
 )
 
 
+
+
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_LOCK_SECONDS = 120
+
+
+def _check_login_lock() -> int:
+    """Return remaining lock seconds if admin login is temporarily locked."""
+    locked_until = session.get("admin_locked_until", 0)
+    now = time.time()
+    if locked_until and now < locked_until:
+        return int(locked_until - now)
+    if locked_until and now >= locked_until:
+        session.pop("admin_locked_until", None)
+        session["admin_failed_attempts"] = 0
+    return 0
+
+
+def _record_failed_login() -> None:
+    attempts = int(session.get("admin_failed_attempts", 0)) + 1
+    session["admin_failed_attempts"] = attempts
+    if attempts >= LOGIN_MAX_ATTEMPTS:
+        session["admin_locked_until"] = time.time() + LOGIN_LOCK_SECONDS
+
+
+def _reset_login_attempts() -> None:
+    session.pop("admin_failed_attempts", None)
+    session.pop("admin_locked_until", None)
+
+
+
 def cloudinary_is_configured() -> bool:
     return bool(CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET)
 
 
-# --- Firebase / Firestore Initialization (From Environment Variable) ---
+
 db = None
 if not firebase_admin._apps:
     cred_raw = (os.environ.get("FIREBASE_CREDENTIALS_JSON") or "").strip()
@@ -90,7 +121,7 @@ if firebase_admin._apps:
         print(f"[Firestore Client Error] {exc}")
 
 
-# --- Cloudinary Directory Structure ---
+
 ROOT_CLOUDINARY_DIR = "qr generator"
 
 CLOUDINARY_FOLDERS = {
@@ -133,7 +164,7 @@ def upload_media_to_cloudinary(file_storage, folder: str) -> dict:
 
 
 def upload_doc_to_cloudinary(file_storage, folder: str) -> dict:
-    """Upload document (Word, PDF, XML, PPT) into a dedicated Cloudinary raw folder."""
+   
     if not cloudinary_is_configured():
         raise RuntimeError("Cloudinary environment variables are missing.")
 
@@ -154,7 +185,7 @@ def upload_doc_to_cloudinary(file_storage, folder: str) -> dict:
 
 
 def save_metadata_firestore(collection_name: str, data: dict) -> bool:
-    """Save metadata to Firestore without exposing any public listing route."""
+    
     if db is None:
         print(f"[Firestore Warning] db is None; skipped saving to '{collection_name}'.")
         return False
@@ -185,7 +216,7 @@ def _format_created_at(val) -> str:
 
 
 def get_photo_qr_metadata(limit: int = 50) -> list[dict]:
-    """Fetch photo QR metadata for admin dashboard only."""
+
     if db is None:
         return []
 
@@ -223,7 +254,7 @@ def get_photo_qr_metadata(limit: int = 50) -> list[dict]:
         except Exception as exc:
             print(f"[Firestore Read Error] collection='{col_name}': {exc}")
 
-    # Sort newest first safely
+
     records.sort(
         key=lambda r: (
             r["_sort_ts"].to_datetime()
@@ -239,7 +270,7 @@ def get_photo_qr_metadata(limit: int = 50) -> list[dict]:
 
 
 def make_qr_data_uri(payload: str) -> str:
-    """Generate a long-lasting PNG QR code in memory (no local disk files)."""
+    
     qr = qrcode.QRCode(
         version=None,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -273,14 +304,14 @@ def require_admin():
 
 @app.after_request
 def add_security_headers(response):
-    # Prevent browser back/forward cache from showing protected admin pages after logout
+    
     if request.path.startswith("/admin"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
     return response
 
-# --- Public Routes (No User Login Required) ---
+
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -423,7 +454,8 @@ def about():
     return render_template("about.html")
 
 
-# --- Admin Routes ---
+
+
 
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
@@ -431,13 +463,21 @@ def admin_login():
         return redirect(url_for("admin_dashboard"))
 
     if request.method == "POST":
+        remaining = _check_login_lock()
+        if remaining > 0:
+            flash(f"Too many failed attempts. Try again in {remaining} seconds.", "error")
+            return render_template("admin_login.html"), 429
+
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
         if username == ADMIN_USERNAME and check_password_hash(ADMIN_PASSWORD_HASH, password):
+            _reset_login_attempts()
             session.clear()
             session["is_admin"] = True
             session["admin_user"] = username
             return redirect(url_for("admin_dashboard"))
+
+        _record_failed_login()
         flash("Invalid admin username or password.", "error")
 
     return render_template("admin_login.html")
