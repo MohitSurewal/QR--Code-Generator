@@ -2,8 +2,9 @@ import base64
 import io
 import json
 import os
-from datetime import datetime, time, timezone
 import time
+from datetime import datetime, timezone
+
 import cloudinary
 import cloudinary.uploader
 import firebase_admin
@@ -22,11 +23,9 @@ from flask import (
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import check_password_hash, generate_password_hash
 
-
 load_dotenv()
 
 app = Flask(__name__)
-
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-fallback-secret-change-me")
 max_mb = int(os.environ.get("MAX_UPLOAD_MB", "100"))
@@ -37,11 +36,9 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get("FLASK_ENV") == "production
 
 csrf = CSRFProtect(app)
 
-
 ADMIN_USERNAME = (os.environ.get("ADMIN_USERNAME") or "admin").strip()
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or "Admin@12345"
 ADMIN_PASSWORD_HASH = generate_password_hash(ADMIN_PASSWORD)
-
 
 CLOUDINARY_CLOUD_NAME = (os.environ.get("CLOUDINARY_CLOUD_NAME") or "").strip()
 CLOUDINARY_API_KEY = (os.environ.get("CLOUDINARY_API_KEY") or "").strip()
@@ -54,15 +51,11 @@ cloudinary.config(
     secure=True,
 )
 
-
-
-
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCK_SECONDS = 120
 
 
 def _check_login_lock() -> int:
-
     locked_until = session.get("admin_locked_until", 0)
     now = time.time()
     if locked_until and now < locked_until:
@@ -85,10 +78,8 @@ def _reset_login_attempts() -> None:
     session.pop("admin_locked_until", None)
 
 
-
 def cloudinary_is_configured() -> bool:
     return bool(CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET)
-
 
 
 db = None
@@ -119,7 +110,6 @@ if firebase_admin._apps:
         db = firestore.client()
     except Exception as exc:
         print(f"[Firestore Client Error] {exc}")
-
 
 
 ROOT_CLOUDINARY_DIR = "qr generator"
@@ -164,7 +154,7 @@ def upload_media_to_cloudinary(file_storage, folder: str) -> dict:
 
 
 def upload_doc_to_cloudinary(file_storage, folder: str) -> dict:
-   
+    """Upload document (Word, PDF, XML, PPT) into a dedicated Cloudinary raw folder."""
     if not cloudinary_is_configured():
         raise RuntimeError("Cloudinary environment variables are missing.")
 
@@ -185,7 +175,7 @@ def upload_doc_to_cloudinary(file_storage, folder: str) -> dict:
 
 
 def save_metadata_firestore(collection_name: str, data: dict) -> bool:
-    
+    """Save metadata to Firestore without exposing any public listing route."""
     if db is None:
         print(f"[Firestore Warning] db is None; skipped saving to '{collection_name}'.")
         return False
@@ -197,9 +187,8 @@ def save_metadata_firestore(collection_name: str, data: dict) -> bool:
     except Exception as exc:
         print(f"[Firestore Write Error] collection='{collection_name}': {exc}")
         return False
-    
-    
-    
+
+
 def _format_created_at(val) -> str:
     if not val:
         return "—"
@@ -215,60 +204,64 @@ def _format_created_at(val) -> str:
         return "—"
 
 
-def get_photo_qr_metadata(limit: int = 50) -> list[dict]:
-
+def get_media_qr_metadata(limit: int = 50) -> list[dict]:
+    """Fetch photo and video QR metadata for admin dashboard only."""
     if db is None:
         return []
 
     records: list[dict] = []
-
     sources = [
         ("public_qr_logs", "Public User"),
         ("admin_qr_items", "Admin"),
     ]
 
     for col_name, default_actor in sources:
-        try:
-            docs = (
-                db.collection(col_name)
-                .where("type", "==", "photo")
-                .limit(limit)
-                .stream()
-            )
-            for doc in docs:
-                item = doc.to_dict() or {}
-                url = item.get("media_url") or item.get("url") or ""
-                records.append({
-                    "id": doc.id,
-                    "source_label": default_actor if item.get("source") != "admin" else "Admin",
-                    "title": item.get("title") or "Photo QR",
-                    "url": url,
-                    "folder": item.get("folder") or "—",
-                    "public_id": item.get("cloudinary_public_id") or item.get("public_id") or "—",
-                    "format": (item.get("format") or "—").upper(),
-                    "bytes": item.get("bytes"),
-                    "created_by": item.get("created_by") or default_actor,
-                    "created_at_str": _format_created_at(item.get("created_at")),
-                    "_sort_ts": item.get("created_at"),
-                })
-        except Exception as exc:
-            print(f"[Firestore Read Error] collection='{col_name}': {exc}")
-
+        for media_type in ("photo", "video"):
+            try:
+                docs = (
+                    db.collection(col_name)
+                    .where("type", "==", media_type)
+                    .limit(limit)
+                    .stream()
+                )
+                for doc in docs:
+                    item = doc.to_dict() or {}
+                    url = item.get("media_url") or item.get("url") or ""
+                    records.append({
+                        "id": doc.id,
+                        "collection": col_name,
+                        "media_type": (item.get("type") or media_type).upper(),
+                        "source_label": "Admin" if item.get("source") == "admin" else default_actor,
+                        "title": item.get("title") or f"{media_type.capitalize()} QR",
+                        "url": url,
+                        "folder": item.get("folder") or "—",
+                        "public_id": item.get("cloudinary_public_id") or item.get("public_id") or "—",
+                        "format": (item.get("format") or "—").upper(),
+                        "bytes": item.get("bytes"),
+                        "created_by": item.get("created_by") or default_actor,
+                        "created_at_str": _format_created_at(item.get("created_at")),
+                        "_sort_ts": item.get("created_at"),
+                    })
+            except Exception as exc:
+                print(f"[Firestore Read Error] collection='{col_name}' type='{media_type}': {exc}")
 
     records.sort(
         key=lambda r: (
             r["_sort_ts"].to_datetime()
             if hasattr(r["_sort_ts"], "to_datetime")
-            else (r["_sort_ts"] if isinstance(r["_sort_ts"], datetime) else datetime.min.replace(tzinfo=timezone.utc))
+            else (
+                r["_sort_ts"]
+                if isinstance(r["_sort_ts"], datetime)
+                else datetime.min.replace(tzinfo=timezone.utc)
+            )
         ),
         reverse=True,
     )
     return records[:limit]
 
 
-
-def delete_photo_qr_record(collection_name: str, doc_id: str) -> tuple[bool, str]:
-    """Delete a photo QR record from Firestore and its asset from Cloudinary if present."""
+def delete_media_qr_record(collection_name: str, doc_id: str) -> tuple[bool, str]:
+    """Delete a photo/video QR record from Firestore and its asset from Cloudinary if present."""
     if db is None:
         return False, "Firestore is not connected."
     if collection_name not in ("public_qr_logs", "admin_qr_items"):
@@ -278,28 +271,29 @@ def delete_photo_qr_record(collection_name: str, doc_id: str) -> tuple[bool, str
         doc_ref = db.collection(collection_name).document(doc_id)
         snap = doc_ref.get()
         if not snap.exists:
-            return False, "Record not found."
+            return False, "Record not found in Firestore."
 
         data = snap.to_dict() or {}
         public_id = data.get("cloudinary_public_id") or data.get("public_id")
         folder = data.get("folder") or ""
+        item_type = (data.get("type") or "").lower()
 
         if public_id and cloudinary_is_configured():
-            resource_type = "video" if "videos" in folder else "image"
+            resource_type = "video" if (item_type == "video" or "videos" in folder) else "image"
             try:
                 cloudinary.uploader.destroy(public_id, resource_type=resource_type)
             except Exception as c_exc:
                 print(f"[Cloudinary Delete Warning] {c_exc}")
 
         doc_ref.delete()
-        return True, "Photo QR metadata and associated media removed."
+        return True, "QR record and associated media removed."
     except Exception as exc:
         print(f"[Firestore Delete Error] {exc}")
         return False, f"Failed to delete record: {exc}"
 
 
 def make_qr_data_uri(payload: str) -> str:
-    
+    """Generate a long-lasting PNG QR code in memory (no local disk files)."""
     qr = qrcode.QRCode(
         version=None,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -333,13 +327,11 @@ def require_admin():
 
 @app.after_request
 def add_security_headers(response):
-    
     if request.path.startswith("/admin"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
     return response
-
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -414,22 +406,25 @@ def video_qr():
         elif not (file.mimetype or "").startswith("video/"):
             flash("Only video files are allowed on the Video QR page.", "error")
         else:
-            folder = CLOUDINARY_FOLDERS[("public", "video")]
-            uploaded = upload_media_to_cloudinary(file, folder=folder)
-            media_url = uploaded["secure_url"]
-            qr_uri = make_qr_data_uri(media_url)
-            save_metadata_firestore(
-                "public_qr_logs",
-                {
-                    "source": "public",
-                    "type": "video",
-                    "folder": folder,
-                    "media_url": media_url,
-                    "cloudinary_public_id": uploaded["public_id"],
-                    "format": uploaded["format"],
-                    "bytes": uploaded["bytes"],
-                },
-            )
+            try:
+                folder = CLOUDINARY_FOLDERS[("public", "video")]
+                uploaded = upload_media_to_cloudinary(file, folder=folder)
+                media_url = uploaded["secure_url"]
+                qr_uri = make_qr_data_uri(media_url)
+                save_metadata_firestore(
+                    "public_qr_logs",
+                    {
+                        "source": "public",
+                        "type": "video",
+                        "folder": folder,
+                        "media_url": media_url,
+                        "cloudinary_public_id": uploaded["public_id"],
+                        "format": uploaded["format"],
+                        "bytes": uploaded["bytes"],
+                    },
+                )
+            except Exception as exc:
+                flash(f"Upload failed: {exc}", "error")
 
     return render_template("video_qr.html", qr_uri=qr_uri, media_url=media_url)
 
@@ -452,23 +447,26 @@ def doc_qr():
                     "error",
                 )
             else:
-                folder = CLOUDINARY_FOLDERS[("public", "doc")]
-                uploaded = upload_doc_to_cloudinary(file, folder=folder)
-                doc_url = uploaded["secure_url"]
-                doc_ext = ext.lstrip(".").upper()
-                qr_uri = make_qr_data_uri(doc_url)
-                save_metadata_firestore(
-                    "public_qr_logs",
-                    {
-                        "source": "public",
-                        "type": "document",
-                        "folder": folder,
-                        "format": doc_ext,
-                        "doc_url": doc_url,
-                        "cloudinary_public_id": uploaded["public_id"],
-                        "bytes": uploaded["bytes"],
-                    },
-                )
+                try:
+                    folder = CLOUDINARY_FOLDERS[("public", "doc")]
+                    uploaded = upload_doc_to_cloudinary(file, folder=folder)
+                    doc_url = uploaded["secure_url"]
+                    doc_ext = ext.lstrip(".").upper()
+                    qr_uri = make_qr_data_uri(doc_url)
+                    save_metadata_firestore(
+                        "public_qr_logs",
+                        {
+                            "source": "public",
+                            "type": "document",
+                            "folder": folder,
+                            "format": doc_ext,
+                            "doc_url": doc_url,
+                            "cloudinary_public_id": uploaded["public_id"],
+                            "bytes": uploaded["bytes"],
+                        },
+                    )
+                except Exception as exc:
+                    flash(f"Upload failed: {exc}", "error")
 
     return render_template(
         "doc_qr.html",
@@ -483,7 +481,16 @@ def about():
     return render_template("about.html")
 
 
+@app.route("/privacy")
+def privacy():
+    contact_email = (os.environ.get("CONTACT_EMAIL") or "support@example.com").strip()
+    return render_template("privacy.html", contact_email=contact_email)
 
+
+@app.route("/terms")
+def terms():
+    contact_email = (os.environ.get("CONTACT_EMAIL") or "support@example.com").strip()
+    return render_template("terms.html", contact_email=contact_email)
 
 
 @app.route("/admin/login", methods=["GET", "POST"])
@@ -625,7 +632,7 @@ def admin_dashboard():
         else:
             flash("Please choose a valid upload type.", "error")
 
-    photo_metadata = get_photo_qr_metadata(limit=50)
+    photo_metadata = get_media_qr_metadata(limit=50)
     return render_template(
         "admin_dashboard.html",
         qr_uri=qr_uri,
@@ -646,11 +653,9 @@ def admin_delete_photo():
         flash("Missing record details for removal.", "error")
         return redirect(url_for("admin_dashboard"))
 
-    ok, msg = delete_photo_qr_record(collection_name, doc_id)
+    ok, msg = delete_media_qr_record(collection_name, doc_id)
     flash(msg, "success" if ok else "error")
     return redirect(url_for("admin_dashboard"))
-
-
 
 
 @app.errorhandler(413)
@@ -659,25 +664,11 @@ def file_too_large(_err):
     return redirect(request.referrer or url_for("index"))
 
 
-
-@app.route("/privacy")
-def privacy():
-    contact_email = (os.environ.get("CONTACT_EMAIL") or "support@example.com").strip()
-    return render_template("privacy.html", contact_email=contact_email)
-
-@app.route("/terms")
-def terms():
-    contact_email = (os.environ.get("CONTACT_EMAIL") or "support@example.com").strip()
-    return render_template("terms.html", contact_email=contact_email)
-
-
-
-
 @app.errorhandler(400)
 def bad_request_or_csrf(err):
     flash(str(getattr(err, "description", "Invalid request or expired CSRF token.")), "error")
     return redirect(request.referrer or url_for("index"))
 
+
 if __name__ == "__main__":
     app.run(debug=os.environ.get("FLASK_ENV") != "production")
-    
