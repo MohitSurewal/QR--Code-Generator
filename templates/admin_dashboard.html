@@ -3,154 +3,208 @@
 {% block title %}Admin Dashboard — QR Studio{% endblock %}
 
 {% block content %}
-<section class="card">
-  <h1>Admin Upload &amp; QR Studio</h1>
-  <p class="subtitle">
-    Upload links, photos, videos, or documents to Cloudinary and store metadata in Firestore.
-  </p>
+  <section class="card">
+    <h1>Admin Upload &amp; QR Studio</h1>
+    <p class="subtitle">
+      Upload links, photos, videos, or documents to Cloudinary and store metadata in Firestore.
+    </p>
 
-  <form
-    method="POST"
-    action="{{ url_for('admin_dashboard') }}"
-    enctype="multipart/form-data"
-    data-loading-form
-  >
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-
-    <div class="field">
-      <label for="upload_type">Content Type</label>
-      <select id="upload_type" name="upload_type" required>
-        <option value="link" selected>Link (URL)</option>
-        <option value="photo">Photo (Image → Cloudinary)</option>
-        <option value="video">Video (Video → Cloudinary)</option>
-        <option value="doc">Document (Word, PDF, XML, PPT → Cloudinary)</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label for="title">Title / Label (Saved in Firestore Metadata)</label>
-      <input
-        type="text"
-        id="title"
-        name="title"
-        placeholder="e.g., Event Flyer or Product Demo"
-      />
-    </div>
-
-    <div class="field" id="section-link">
-      <label for="admin_url">Target URL</label>
-      <input
-        type="url"
-        id="admin_url"
-        name="url"
-        placeholder="https://example.com"
-      />
-    </div>
-
-    <div class="field" id="section-media" style="display: none;">
-      <label id="media-label">Select Photo or Video</label>
-      <div class="dropzone" data-dropzone data-preview-id="adminMediaPreview">
-        <input
-          type="file"
-          id="media_file"
-          name="media_file"
-          accept="image/*,video/*"
-        />
-        <p><strong>Click to choose</strong> or drag and drop a photo or video</p>
-        <p class="subtitle" style="margin: 6px 0 0; font-size: 0.85rem;" data-file-name>
-          Images &amp; Videos supported
-        </p>
-      </div>
-      <div id="adminMediaPreview" class="preview-box"></div>
-    </div>
-
-    <div class="field" id="section-doc" style="display: none;">
-      <label for="doc_file">Select Document (WORD, PDF, XML, PPT)</label>
-      <div class="dropzone" data-dropzone data-preview-id="adminDocPreview">
-        <input
-          type="file"
-          id="doc_file"
-          name="doc_file"
-          accept=".doc,.docx,.pdf,.xml,.ppt,.pptx"
-        />
-        <p><strong>Click to choose</strong> or drag and drop a document</p>
-        <p class="subtitle" style="margin: 6px 0 0; font-size: 0.85rem;" data-file-name>
-          .doc, .docx, .pdf, .xml, .ppt, .pptx
-        </p>
-      </div>
-      <div id="adminDocPreview" class="preview-box"></div>
-    </div>
-
-    <button
-      type="submit"
-      class="btn-primary"
-      data-loading-text="Saving &amp; generating QR..."
+    <form
+      method="POST"
+      action="{{ url_for('admin_dashboard') }}"
+      enctype="multipart/form-data"
+      data-loading-form
     >
-      <span class="spinner" aria-hidden="true"></span>
-      <span class="btn-label">Generate &amp; Save Metadata</span>
-    </button>
-  </form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
-  {% if qr_uri %}
-    <div class="qr-result qr-pop">
-      <div class="qr-frame">
-        <img src="{{ qr_uri }}" alt="Generated Admin QR Code" />
+      <div class="field">
+        <label for="upload_type">Content Type</label>
+        <select id="upload_type" name="upload_type" required>
+          <option value="link" selected>Link (URL)</option>
+          <option value="photo">Photo (Image → Cloudinary)</option>
+          <option value="video">Video (Video → Cloudinary)</option>
+          <option value="doc">Document (Word, PDF, XML, PPT → Cloudinary)</option>
+        </select>
       </div>
 
-      {% if result_url %}
-        <div class="url-pill">{{ result_url }}</div>
-      {% endif %}
+      <div class="field">
+        <label for="title">Title / Label (Saved in Firestore Metadata)</label>
+        <input
+          type="text"
+          id="title"
+          name="title"
+          placeholder="e.g., Event Flyer or Product Demo"
+        />
+      </div>
 
-      <div class="actions-row">
-        <a
-          href="{{ qr_uri }}"
-          download="admin-qr-code.png"
-          class="btn-primary"
-        >
-          Download QR PNG
-        </a>
+      <div class="field" id="section-link">
+        <label for="admin_url">Target URL</label>
+        <input
+          type="url"
+          id="admin_url"
+          name="url"
+          placeholder="https://example.com"
+        />
+      </div>
+
+      <div class="field" id="section-media" style="display: none;">
+        <label id="media-label">Select Photo or Video</label>
+        <div class="dropzone" data-dropzone data-preview-id="adminMediaPreview">
+          <input
+            type="file"
+            id="media_file"
+            name="media_file"
+            accept="image/*,video/*"
+          />
+          <p><strong>Click to choose</strong> or drag and drop a photo or video</p>
+          <p class="subtitle" style="margin: 6px 0 0; font-size: 0.85rem;" data-file-name>
+            Images &amp; Videos supported
+          </p>
+        </div>
+        <div id="adminMediaPreview" class="preview-box"></div>
+      </div>
+
+      <div class="field" id="section-doc" style="display: none;">
+        <label for="doc_file">Select Document (WORD, PDF, XML, PPT)</label>
+        <div class="dropzone" data-dropzone data-preview-id="adminDocPreview">
+          <input
+            type="file"
+            id="doc_file"
+            name="doc_file"
+            accept=".doc,.docx,.pdf,.xml,.ppt,.pptx"
+          />
+          <p><strong>Click to choose</strong> or drag and drop a document</p>
+          <p class="subtitle" style="margin: 6px 0 0; font-size: 0.85rem;" data-file-name>
+            .doc, .docx, .pdf, .xml, .ppt, .pptx
+          </p>
+        </div>
+        <div id="adminDocPreview" class="preview-box"></div>
+      </div>
+
+      <button
+        type="submit"
+        class="btn-primary"
+        data-loading-text="Saving &amp; generating QR..."
+      >
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="btn-label">Generate &amp; Save Metadata</span>
+      </button>
+    </form>
+
+    {% if qr_uri %}
+      <div class="qr-result qr-pop">
+        <div class="qr-frame">
+          <img src="{{ qr_uri }}" alt="Generated Admin QR Code" />
+        </div>
+
         {% if result_url %}
-          <button
-            type="button"
-            class="btn-secondary"
-            data-copy-url="{{ result_url }}"
-          >
-            Copy URL
-          </button>
+          <div class="url-pill">{{ result_url }}</div>
         {% endif %}
+
+        <div class="actions-row">
+          <a
+            href="{{ qr_uri }}"
+            download="admin-qr-code.png"
+            class="btn-primary"
+          >
+            Download QR PNG
+          </a>
+          {% if result_url %}
+            <button
+              type="button"
+              class="btn-secondary"
+              data-copy-url="{{ result_url }}"
+            >
+              Copy URL
+            </button>
+          {% endif %}
+        </div>
       </div>
+    {% endif %}
+
+    <div class="qr-result" style="text-align: left;">
+      <h2 style="margin: 0 0 6px; font-size: 1.25rem;">Photo QR Metadata</h2>
+      <p class="subtitle" style="margin: 0 0 16px; font-size: 0.9rem;">
+        Visible only to authenticated admins—shows photo QR records stored in Firestore.
+      </p>
+
+      {% if photo_metadata %}
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+            <thead>
+              <tr style="border-bottom: 1px solid var(--card-border); color: var(--muted); text-align: left;">
+                <th style="padding: 10px 8px;">Source / By</th>
+                <th style="padding: 10px 8px;">Title</th>
+                <th style="padding: 10px 8px;">Format / Size</th>
+                <th style="padding: 10px 8px;">Cloudinary Folder</th>
+                <th style="padding: 10px 8px;">Created (UTC)</th>
+                <th style="padding: 10px 8px;">Photo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in photo_metadata %}
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                  <td style="padding: 10px 8px;">
+                    <strong>{{ item.source_label }}</strong>
+                    {% if item.created_by and item.created_by != item.source_label %}
+                      <div style="color: var(--muted); font-size: 0.78rem;">{{ item.created_by }}</div>
+                    {% endif %}
+                  </td>
+                  <td style="padding: 10px 8px;">{{ item.title }}</td>
+                  <td style="padding: 10px 8px;">
+                    {{ item.format }}
+                    {% if item.bytes %}
+                      <div style="color: var(--muted); font-size: 0.78rem;">{{ (item.bytes / 1024)|round(1) }} KB</div>
+                    {% endif %}
+                  </td>
+                  <td style="padding: 10px 8px; color: var(--muted);">{{ item.folder }}</td>
+                  <td style="padding: 10px 8px; color: var(--muted);">{{ item.created_at_str }}</td>
+                  <td style="padding: 10px 8px;">
+                    {% if item.url %}
+                      <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="padding: 6px 10px; font-size: 0.8rem;">View</a>
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="subtitle" style="margin: 0;">No photo QR metadata found yet.</p>
+      {% endif %}
     </div>
-  {% endif %}
-</section>
+  </section>
 {% endblock %}
 
 {% block scripts %}
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const typeSelect = document.getElementById("upload_type");
-    const linkSec = document.getElementById("section-link");
-    const mediaSec = document.getElementById("section-media");
-    const docSec = document.getElementById("section-doc");
-    const mediaInput = document.getElementById("media_file");
-    const mediaLabel = document.getElementById("media-label");
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const typeSelect = document.getElementById("upload_type");
+      const linkSec = document.getElementById("section-link");
+      const mediaSec = document.getElementById("section-media");
+      const docSec = document.getElementById("section-doc");
+      const mediaInput = document.getElementById("media_file");
+      const mediaLabel = document.getElementById("media-label");
 
-    function syncFields() {
-      const val = typeSelect.value;
-      linkSec.style.display = val === "link" ? "block" : "none";
-      mediaSec.style.display = (val === "photo" || val === "video") ? "block" : "none";
-      docSec.style.display = val === "doc" ? "block" : "none";
+      function syncFields() {
+        const val = typeSelect.value;
+        linkSec.style.display = val === "link" ? "block" : "none";
+        mediaSec.style.display = (val === "photo" || val === "video") ? "block" : "none";
+        docSec.style.display = val === "doc" ? "block" : "none";
 
-      if (val === "photo") {
-        mediaInput.accept = "image/*";
-        mediaLabel.textContent = "Select Photo (Uploaded to Cloudinary)";
-      } else if (val === "video") {
-        mediaInput.accept = "video/*";
-        mediaLabel.textContent = "Select Video (Uploaded to Cloudinary)";
+        if (val === "photo") {
+          mediaInput.accept = "image/*";
+          mediaLabel.textContent = "Select Photo (Uploaded to Cloudinary)";
+        } else if (val === "video") {
+          mediaInput.accept = "video/*";
+          mediaLabel.textContent = "Select Video (Uploaded to Cloudinary)";
+        }
       }
-    }
 
-    typeSelect.addEventListener("change", syncFields);
-    syncFields();
-  });
-</script>
+      typeSelect.addEventListener("change", syncFields);
+      syncFields();
+    });
+  </script>
 {% endblock %}
