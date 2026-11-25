@@ -3,9 +3,12 @@ import hashlib
 import io
 import json
 import os
+import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
+import uuid
 from datetime import datetime, timezone
 
 import cloudinary
@@ -58,6 +61,16 @@ VIRUSTOTAL_API_KEY = (os.environ.get("VIRUSTOTAL_API_KEY") or "").strip()
 VT_BLOCK_ON_MALICIOUS = (
     os.environ.get("VT_BLOCK_ON_MALICIOUS") or "true"
 ).strip().lower() == "true"
+
+SIGHTENGINE_API_USER = (os.environ.get("SIGHTENGINE_API_USER") or "").strip()
+SIGHTENGINE_API_SECRET = (os.environ.get("SIGHTENGINE_API_SECRET") or "").strip()
+SIGHTENGINE_TEXT_MODERATION = (
+    os.environ.get("SIGHTENGINE_TEXT_MODERATION") or "false"
+).strip().lower() == "true"
+
+BLOCKED_LINK_PATTERNS = [
+    r"\b(porn|xxx|nsfw|nude|nudity|sex|escort|onlyfans|camgirl|hentai|erotic)\b",
+]
 
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCK_SECONDS = 120
@@ -141,23 +154,163 @@ ALLOWED_DOC_EXTENSIONS = {
 }
 
 
+def _file_sha256(file_storage) -> str:
+    stream = file_storage.stream
+    stream.seek(0)
+    h = hashlib.sha256()
+    while True:
+        chunk = stream.read(1024 * 1024)
+        if not chunk:
+            break
+        h.update(chunk)
+    stream.seek(0)
+    return h.hexdigest()
+
+
+def _encode_multipart_file(
+    field_name: str,
+    filename: str,
+    content_type: str,
+    data: bytes,
+    fields: dict,
+) -> tuple[bytes, str]:
+    boundary = f"----QRStudioBoundary{uuid.uuid4().hex}"
+    body = bytearray()
+
+    for key, val in fields.items():
+        body.extend(f"--{boundary}\r\n".encode("utf-8"))
+        body.extend(f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode("utf-8"))
+        body.extend(f"{val}\r\n".encode("utf-8"))
+
+    safe_name = filename or "upload.bin"
+    mime = content_type or "application/octet-stream"
+    body.extend(f"--{boundary}\r\n".encode("utf-8"))
+    body.extend(
+        f'Content-Disposition: form-data; name="{field_name}"; filename="{safe_name}"\r\n'.encode("utf-8")
+    )
+    body.extend(f"Content-Type: {mime}\r\n\r\n".encode("utf-8"))
+    body.extend(data)
+    body.extend(f"\r\n--{boundary}--\r\n".encode("utf-8"))
+
+    return bytes(body), f"multipart/form-data; boundary={boundary}"
+
+
+def _is_nudity_flagged(nudity_obj: dict) -> bool:
+    if not isinstance(nudity_obj, dict):
+        return False
+    scores = [
+        float(nudity_obj.get("sexual_activity") or 0.0),
+        float(nudity_obj.get("sexual_display") or 0.0),
+        float(nudity_obj.get("erotica") or 0.0),
+        float(nudity_obj.get("very_suggestive") or 0.0),
+    ]
+    return max(scores) >= 0.5
+
+
+def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
+    """Check image or video file for nudity/explicit content via Sightengine."""
+    if not (SIGHTENGINE_API_USER and SIGHTENGINE_API_SECRET):
+        return True, "Sightengine keys not configured; check skipped."
+
+    try:
+        stream = file_storage.stream
+        stream.seek(0)
+        file_bytes = stream.read()
+        stream.seek(0)
+
+        endpoint = (
+            "https://api.sightengine.com/1.0/check-video.json"
+            if media_kind == "video"
+            else "https://api.sightengine.com/1.0/check.json"
+        )
+        timeout_sec = 25 if media_kind == "video" else 15
+
+        payload_bytes, content_type_hdr = _encode_multipart_file(
+            field_name="media",
+            filename=file_storage.filename or f"{media_kind}.bin",
+            content_type=file_storage.mimetype or "application/octet-stream",
+            data=file_bytes,
+            fields={
+                "models": "nudity-2.1",
+                "api_user": SIGHTENGINE_API_USER,
+                "api_secret": SIGHTENGINE_API_SECRET,
+            },
+        )
+
+        req = urllib.request.Request(
+            endpoint,
+            data=payload_bytes,
+            headers={"Content-Type": content_type_hdr},
+            method="POST",
+        )
+
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+
+        if result.get("status") != "success":
+            return True, "Sightengine non-success response; skipped."
+
+        if media_kind == "video":
+            data_block = result.get("data") or {}
+            frames = data_block.get("frames") or []
+            for frame in frames:
+                if _is_nudity_flagged((frame or {}).get("nudity") or {}):
+                    return False, "Nudity or explicit content detected in video."
+            return True, "Clean"
+
+        if _is_nudity_flagged(result.get("nudity") or {}):
+            return False, "Nudity or explicit content detected in image."
+
+        return True, "Clean"
+
+    except Exception as exc:
+        print(f"[Sightengine {media_kind.capitalize()} Check Error] {exc}")
+        return True, f"Sightengine {media_kind} check error; skipped."
+
+
+def check_link_or_text_safety(text_or_url: str) -> tuple[bool, str]:
+    """Block prohibited adult/nudity links or text, plus optional Sightengine text check."""
+    cleaned = (text_or_url or "").strip()
+    lowered = cleaned.lower()
+
+    for pattern in BLOCKED_LINK_PATTERNS:
+        if re.search(pattern, lowered):
+            return False, "Link or text contains prohibited nudity/adult terms."
+
+    if SIGHTENGINE_TEXT_MODERATION and SIGHTENGINE_API_USER and SIGHTENGINE_API_SECRET:
+        try:
+            encoded = urllib.parse.urlencode({
+                "text": cleaned,
+                "mode": "rules",
+                "lang": "en",
+                "categories": "profanity,drug,weapon,spam",
+                "api_user": SIGHTENGINE_API_USER,
+                "api_secret": SIGHTENGINE_API_SECRET,
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.sightengine.com/1.0/text/check.json",
+                data=encoded,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            profanity_matches = ((data.get("profanity") or {}).get("matches") or [])
+            if any((m or {}).get("intensity") == "high" for m in profanity_matches):
+                return False, "High-severity inappropriate text flagged."
+        except Exception as exc:
+            print(f"[Sightengine Text Check Error] {exc}")
+
+    return True, "Clean"
+
+
 def scan_file_with_virustotal(file_storage) -> tuple[bool, str]:
     """Check a file's SHA-256 hash against VirusTotal before uploading to Cloudinary."""
     if not VIRUSTOTAL_API_KEY:
         return True, "VirusTotal API key not configured; scan skipped."
 
     try:
-        stream = file_storage.stream
-        stream.seek(0)
-        hasher = hashlib.sha256()
-        while True:
-            chunk = stream.read(1024 * 1024)
-            if not chunk:
-                break
-            hasher.update(chunk)
-        stream.seek(0)
-        sha256_hex = hasher.hexdigest()
-
+        sha256_hex = _file_sha256(file_storage)
         url = f"https://www.virustotal.com/api/v3/files/{sha256_hex}"
         req = urllib.request.Request(
             url,
@@ -171,7 +324,7 @@ def scan_file_with_virustotal(file_storage) -> tuple[bool, str]:
         with urllib.request.urlopen(req, timeout=10) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
 
-        attrs = (payload.get("data") or {}).get("attributes") or {}
+        attrs = ((payload.get("data") or {}).get("attributes") or {})
         stats = attrs.get("last_analysis_stats") or {}
         malicious = int(stats.get("malicious") or 0)
         suspicious = int(stats.get("suspicious") or 0)
@@ -253,6 +406,29 @@ def save_metadata_firestore(collection_name: str, data: dict) -> bool:
     except Exception as exc:
         print(f"[Firestore Write Error] collection='{collection_name}': {exc}")
         return False
+
+
+def log_moderation_alert(
+    source: str,
+    content_type: str,
+    reason: str,
+    file_storage=None,
+    link_value: str | None = None,
+) -> None:
+    """Save a non-media alert record in Firestore for admin awareness without storing explicit files."""
+    payload = {
+        "source": source,
+        "type": content_type,
+        "status": "blocked",
+        "reason": reason,
+    }
+    if file_storage is not None:
+        payload["sha256"] = _file_sha256(file_storage)
+        payload["extension"] = os.path.splitext((file_storage.filename or "").lower())[1]
+    if link_value:
+        payload["blocked_target"] = link_value[:300]
+
+    save_metadata_firestore("moderation_alerts", payload)
 
 
 def _format_created_at(val) -> str:
@@ -410,17 +586,25 @@ def index():
         if not (link.startswith("http://") or link.startswith("https://")):
             flash("Please enter a valid URL starting with http:// or https://", "error")
         else:
-            target_url = link
-            qr_uri = make_qr_data_uri(link)
-            save_metadata_firestore(
-                "public_qr_logs",
-                {
-                    "source": "public",
-                    "type": "link",
-                    "folder": "none",
-                    "target_url": link,
-                },
-            )
+            link_ok, link_reason = check_link_or_text_safety(link)
+            if not link_ok:
+                log_moderation_alert("public", "link", link_reason, link_value=link)
+                flash(
+                    "Blocked: nudity, explicit, or inappropriate links cannot generate a QR code.",
+                    "error",
+                )
+            else:
+                target_url = link
+                qr_uri = make_qr_data_uri(link)
+                save_metadata_firestore(
+                    "public_qr_logs",
+                    {
+                        "source": "public",
+                        "type": "link",
+                        "folder": "none",
+                        "target_url": link,
+                    },
+                )
 
     return render_template("index.html", qr_uri=qr_uri, target_url=target_url)
 
@@ -438,10 +622,19 @@ def photo_qr():
             flash("Only image files are allowed on the Photo QR page.", "error")
         else:
             try:
+                nudity_ok, nudity_reason = check_media_nudity(file, "photo")
+                if not nudity_ok:
+                    log_moderation_alert("public", "photo", nudity_reason, file_storage=file)
+                    flash(
+                        "Blocked: nudity or explicit photos are not allowed and no QR code was generated.",
+                        "error",
+                    )
+                    return render_template("photo_qr.html", qr_uri=None, media_url=None)
+
                 is_safe, vt_msg = scan_file_with_virustotal(file)
                 if not is_safe:
                     flash(vt_msg, "error")
-                    return render_template("photo_qr.html", qr_uri=qr_uri, media_url=media_url)
+                    return render_template("photo_qr.html", qr_uri=None, media_url=None)
 
                 folder = CLOUDINARY_FOLDERS[("public", "photo")]
                 uploaded = upload_media_to_cloudinary(file, folder=folder)
@@ -478,10 +671,19 @@ def video_qr():
             flash("Only video files are allowed on the Video QR page.", "error")
         else:
             try:
+                nudity_ok, nudity_reason = check_media_nudity(file, "video")
+                if not nudity_ok:
+                    log_moderation_alert("public", "video", nudity_reason, file_storage=file)
+                    flash(
+                        "Blocked: nudity or explicit videos are not allowed and no QR code was generated.",
+                        "error",
+                    )
+                    return render_template("video_qr.html", qr_uri=None, media_url=None)
+
                 is_safe, vt_msg = scan_file_with_virustotal(file)
                 if not is_safe:
                     flash(vt_msg, "error")
-                    return render_template("video_qr.html", qr_uri=qr_uri, media_url=media_url)
+                    return render_template("video_qr.html", qr_uri=None, media_url=None)
 
                 folder = CLOUDINARY_FOLDERS[("public", "video")]
                 uploaded = upload_media_to_cloudinary(file, folder=folder)
@@ -529,9 +731,9 @@ def doc_qr():
                         flash(vt_msg, "error")
                         return render_template(
                             "doc_qr.html",
-                            qr_uri=qr_uri,
-                            doc_url=doc_url,
-                            doc_ext=doc_ext,
+                            qr_uri=None,
+                            doc_url=None,
+                            doc_ext=None,
                         )
 
                     folder = CLOUDINARY_FOLDERS[("public", "doc")]
@@ -630,20 +832,28 @@ def admin_dashboard():
             if not (link.startswith("http://") or link.startswith("https://")):
                 flash("Please enter a valid URL starting with http:// or https://", "error")
             else:
-                result_url = link
-                qr_uri = make_qr_data_uri(link)
-                save_metadata_firestore(
-                    "admin_qr_items",
-                    {
-                        "source": "admin",
-                        "title": title,
-                        "type": "link",
-                        "folder": "none",
-                        "url": link,
-                        "created_by": session.get("admin_user"),
-                    },
-                )
-                flash("Link QR generated and metadata saved to Firestore.", "success")
+                link_ok, link_reason = check_link_or_text_safety(link)
+                if not link_ok:
+                    log_moderation_alert("admin", "link", link_reason, link_value=link)
+                    flash(
+                        "Blocked: nudity, explicit, or inappropriate links cannot generate a QR code.",
+                        "error",
+                    )
+                else:
+                    result_url = link
+                    qr_uri = make_qr_data_uri(link)
+                    save_metadata_firestore(
+                        "admin_qr_items",
+                        {
+                            "source": "admin",
+                            "title": title,
+                            "type": "link",
+                            "folder": "none",
+                            "url": link,
+                            "created_by": session.get("admin_user"),
+                        },
+                    )
+                    flash("Link QR generated and metadata saved to Firestore.", "success")
 
         elif upload_type in ("photo", "video"):
             file = request.files.get("media_file")
@@ -651,32 +861,40 @@ def admin_dashboard():
                 flash(f"Please select a {upload_type} file.", "error")
             else:
                 try:
-                    is_safe, vt_msg = scan_file_with_virustotal(file)
-                    if not is_safe:
-                        flash(vt_msg, "error")
-                    else:
-                        folder = CLOUDINARY_FOLDERS[("admin", upload_type)]
-                        uploaded = upload_media_to_cloudinary(file, folder=folder)
-                        result_url = uploaded["secure_url"]
-                        qr_uri = make_qr_data_uri(result_url)
-                        save_metadata_firestore(
-                            "admin_qr_items",
-                            {
-                                "source": "admin",
-                                "title": title,
-                                "type": upload_type,
-                                "folder": folder,
-                                "url": result_url,
-                                "cloudinary_public_id": uploaded["public_id"],
-                                "format": uploaded["format"],
-                                "bytes": uploaded["bytes"],
-                                "created_by": session.get("admin_user"),
-                            },
-                        )
+                    nudity_ok, nudity_reason = check_media_nudity(file, upload_type)
+                    if not nudity_ok:
+                        log_moderation_alert("admin", upload_type, nudity_reason, file_storage=file)
                         flash(
-                            f"{upload_type.capitalize()} uploaded to Cloudinary and metadata saved to Firestore.",
-                            "success",
+                            f"Blocked: nudity or explicit {upload_type}s are not allowed and no QR code was generated.",
+                            "error",
                         )
+                    else:
+                        is_safe, vt_msg = scan_file_with_virustotal(file)
+                        if not is_safe:
+                            flash(vt_msg, "error")
+                        else:
+                            folder = CLOUDINARY_FOLDERS[("admin", upload_type)]
+                            uploaded = upload_media_to_cloudinary(file, folder=folder)
+                            result_url = uploaded["secure_url"]
+                            qr_uri = make_qr_data_uri(result_url)
+                            save_metadata_firestore(
+                                "admin_qr_items",
+                                {
+                                    "source": "admin",
+                                    "title": title,
+                                    "type": upload_type,
+                                    "folder": folder,
+                                    "url": result_url,
+                                    "cloudinary_public_id": uploaded["public_id"],
+                                    "format": uploaded["format"],
+                                    "bytes": uploaded["bytes"],
+                                    "created_by": session.get("admin_user"),
+                                },
+                            )
+                            flash(
+                                f"{upload_type.capitalize()} uploaded to Cloudinary and metadata saved to Firestore.",
+                                "success",
+                            )
                 except Exception as exc:
                     flash(f"Upload failed: {exc}", "error")
 
