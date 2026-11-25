@@ -42,8 +42,8 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get("FLASK_ENV") == "production
 
 csrf = CSRFProtect(app)
 
-ADMIN_USERNAME = (os.environ.get("ADMIN_USERNAME") or "admin").strip()
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or "Admin@12345"
+ADMIN_USERNAME = (os.environ.get("ADMIN_USERNAME") ).strip()
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") 
 ADMIN_PASSWORD_HASH = generate_password_hash(ADMIN_PASSWORD)
 
 CLOUDINARY_CLOUD_NAME = (os.environ.get("CLOUDINARY_CLOUD_NAME") or "").strip()
@@ -248,12 +248,8 @@ def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
         file_bytes = stream.read()
         stream.seek(0)
 
-        endpoint = (
-            "https://api.sightengine.com/1.0/check-video.json"
-            if media_kind == "video"
-            else "https://api.sightengine.com/1.0/check.json"
-        )
-        timeout_sec = 30 if media_kind == "video" else 15
+        endpoint = "https://api.sightengine.com/1.0/check.json"
+        timeout_sec = 25 if media_kind == "video" else 15
 
         payload_bytes, content_type_hdr = _encode_multipart_file(
             field_name="media",
@@ -290,20 +286,17 @@ def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
 
         if media_kind == "video":
             frames = _extract_video_frames(result)
-            print(f"[Sightengine video frames count] {len(frames)}")
-            if not frames:
-                print(f"[Sightengine video raw preview] {raw_body[:1000]}")
-            for idx, frame in enumerate(frames):
-                f_nudity = (frame or {}).get("nudity") or {}
-                if _is_nudity_flagged(f_nudity, threshold=0.35):
-                    print(f"[Sightengine video flagged] frame={idx} nudity={f_nudity}")
-                    return False, "Nudity or explicit content detected in video."
-            return True, "Clean"
+            if frames:
+                for idx, frame in enumerate(frames):
+                    f_nudity = (frame or {}).get("nudity") or {}
+                    if _is_nudity_flagged(f_nudity, threshold=0.35):
+                        print(f"[Sightengine video flagged] frame={idx} nudity={f_nudity}")
+                        return False, "Nudity or explicit content detected in video."
 
         nudity_data = result.get("nudity") or {}
         print(f"[Sightengine nudity scores] {nudity_data}")
         if _is_nudity_flagged(nudity_data, threshold=0.35):
-            return False, "Nudity or explicit content detected in image."
+            return False, f"Nudity or explicit content detected in {media_kind}."
 
         return True, "Clean"
 
