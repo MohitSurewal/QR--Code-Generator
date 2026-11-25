@@ -67,6 +67,9 @@ SIGHTENGINE_API_SECRET = (os.environ.get("SIGHTENGINE_API_SECRET") or "").strip(
 SIGHTENGINE_TEXT_MODERATION = (
     os.environ.get("SIGHTENGINE_TEXT_MODERATION") or "false"
 ).strip().lower() == "true"
+STRICT_MODERATION = (
+    os.environ.get("STRICT_MODERATION") or "false"
+).strip().lower() == "true"
 
 BLOCKED_LINK_PATTERNS = [
     r"\b(porn|xxx|nsfw|nude|nudity|sex|escort|onlyfans|camgirl|hentai|erotic)\b",
@@ -195,21 +198,37 @@ def _encode_multipart_file(
     return bytes(body), f"multipart/form-data; boundary={boundary}"
 
 
-def _is_nudity_flagged(nudity_obj: dict) -> bool:
+def _is_nudity_flagged(nudity_obj: dict, threshold: float = 0.35) -> bool:
     if not isinstance(nudity_obj, dict):
         return False
-    scores = [
-        float(nudity_obj.get("sexual_activity") or 0.0),
-        float(nudity_obj.get("sexual_display") or 0.0),
-        float(nudity_obj.get("erotica") or 0.0),
-        float(nudity_obj.get("very_suggestive") or 0.0),
-    ]
-    return max(scores) >= 0.5
+
+    direct_keys = (
+        "sexual_activity",
+        "sexual_display",
+        "erotica",
+        "very_suggestive",
+        "suggestive",
+        "raw",
+    )
+    scores: list[float] = []
+    for k in direct_keys:
+        v = nudity_obj.get(k)
+        if isinstance(v, (int, float)):
+            scores.append(float(v))
+        elif isinstance(v, dict):
+            for sub_v in v.values():
+                if isinstance(sub_v, (int, float)):
+                    scores.append(float(sub_v))
+
+    return max(scores, default=0.0) >= threshold
 
 
 def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
     """Check image or video file for nudity/explicit content via Sightengine."""
     if not (SIGHTENGINE_API_USER and SIGHTENGINE_API_SECRET):
+        print("[Sightengine Warning] SIGHTENGINE_API_USER or SIGHTENGINE_API_SECRET is missing.")
+        if STRICT_MODERATION:
+            return False, "Moderation service is not configured; upload blocked."
         return True, "Sightengine keys not configured; check skipped."
 
     try:
@@ -247,7 +266,14 @@ def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
         with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
             result = json.loads(resp.read().decode("utf-8"))
 
+        print(
+            f"[Sightengine {media_kind} response] status={result.get('status')} keys={list(result.keys())}"
+        )
+
         if result.get("status") != "success":
+            print(f"[Sightengine Non-Success] {result}")
+            if STRICT_MODERATION:
+                return False, "Moderation check could not be verified; upload blocked."
             return True, "Sightengine non-success response; skipped."
 
         if media_kind == "video":
@@ -258,13 +284,27 @@ def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
                     return False, "Nudity or explicit content detected in video."
             return True, "Clean"
 
-        if _is_nudity_flagged(result.get("nudity") or {}):
+        nudity_data = result.get("nudity") or {}
+        print(f"[Sightengine nudity scores] {nudity_data}")
+        if _is_nudity_flagged(nudity_data):
             return False, "Nudity or explicit content detected in image."
 
         return True, "Clean"
 
+    except urllib.error.HTTPError as http_err:
+        err_body = ""
+        try:
+            err_body = http_err.read().decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+        print(f"[Sightengine HTTP Error] code={http_err.code} body={err_body}")
+        if STRICT_MODERATION:
+            return False, "Moderation API error; upload blocked for safety."
+        return True, f"Sightengine {media_kind} check error; skipped."
     except Exception as exc:
         print(f"[Sightengine {media_kind.capitalize()} Check Error] {exc}")
+        if STRICT_MODERATION:
+            return False, "Moderation check failed; upload blocked for safety."
         return True, f"Sightengine {media_kind} check error; skipped."
 
 
