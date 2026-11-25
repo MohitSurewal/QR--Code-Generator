@@ -72,7 +72,7 @@ STRICT_MODERATION = (
 ).strip().lower() == "true"
 
 BLOCKED_LINK_PATTERNS = [
-    r"\b(porn|xxx|nsfw|nude|nudity|sex|escort|onlyfans|camgirl|hentai|erotic)\b",
+    r"\b(porn|xxx|nsfw|nude|nudity|sex|escort|onlyfans|camgirl|hentai|erotic|pornhub|xhamster|redtube)\b",
 ]
 
 LOGIN_MAX_ATTEMPTS = 5
