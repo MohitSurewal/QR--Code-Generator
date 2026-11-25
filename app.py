@@ -72,7 +72,7 @@ STRICT_MODERATION = (
 ).strip().lower() == "true"
 
 BLOCKED_LINK_PATTERNS = [
-    r"\b(porn|xxx|nsfw|nude|nudity|sex|escort|onlyfans|camgirl|hentai|erotic|pornhub|xhamster|redtube)\b",
+    r"(porn|xxx|nsfw|nude|nudity|sex|escort|onlyfans|camgirl|hentai|erotic|xvideos|xnxx|pornhub|redtube|xhamster|brazzers|chaturbate|stripchat)",
 ]
 
 LOGIN_MAX_ATTEMPTS = 5
@@ -223,6 +223,17 @@ def _is_nudity_flagged(nudity_obj: dict, threshold: float = 0.35) -> bool:
     return max(scores, default=0.0) >= threshold
 
 
+def _extract_video_frames(result: dict) -> list[dict]:
+    if not isinstance(result, dict):
+        return []
+    data_block = result.get("data") or {}
+    if isinstance(data_block.get("frames"), list):
+        return data_block["frames"]
+    if isinstance(result.get("frames"), list):
+        return result["frames"]
+    return []
+
+
 def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
     """Check image or video file for nudity/explicit content via Sightengine."""
     if not (SIGHTENGINE_API_USER and SIGHTENGINE_API_SECRET):
@@ -242,7 +253,7 @@ def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
             if media_kind == "video"
             else "https://api.sightengine.com/1.0/check.json"
         )
-        timeout_sec = 25 if media_kind == "video" else 15
+        timeout_sec = 30 if media_kind == "video" else 15
 
         payload_bytes, content_type_hdr = _encode_multipart_file(
             field_name="media",
@@ -264,29 +275,34 @@ def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
         )
 
         with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
+            raw_body = resp.read().decode("utf-8", errors="ignore")
+            result = json.loads(raw_body)
 
         print(
             f"[Sightengine {media_kind} response] status={result.get('status')} keys={list(result.keys())}"
         )
 
         if result.get("status") != "success":
-            print(f"[Sightengine Non-Success] {result}")
+            print(f"[Sightengine Non-Success {media_kind}] {raw_body[:1000]}")
             if STRICT_MODERATION:
                 return False, "Moderation check could not be verified; upload blocked."
             return True, "Sightengine non-success response; skipped."
 
         if media_kind == "video":
-            data_block = result.get("data") or {}
-            frames = data_block.get("frames") or []
-            for frame in frames:
-                if _is_nudity_flagged((frame or {}).get("nudity") or {}):
+            frames = _extract_video_frames(result)
+            print(f"[Sightengine video frames count] {len(frames)}")
+            if not frames:
+                print(f"[Sightengine video raw preview] {raw_body[:1000]}")
+            for idx, frame in enumerate(frames):
+                f_nudity = (frame or {}).get("nudity") or {}
+                if _is_nudity_flagged(f_nudity, threshold=0.35):
+                    print(f"[Sightengine video flagged] frame={idx} nudity={f_nudity}")
                     return False, "Nudity or explicit content detected in video."
             return True, "Clean"
 
         nudity_data = result.get("nudity") or {}
         print(f"[Sightengine nudity scores] {nudity_data}")
-        if _is_nudity_flagged(nudity_data):
+        if _is_nudity_flagged(nudity_data, threshold=0.35):
             return False, "Nudity or explicit content detected in image."
 
         return True, "Clean"
@@ -297,7 +313,7 @@ def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
             err_body = http_err.read().decode("utf-8", errors="ignore")
         except Exception:
             pass
-        print(f"[Sightengine HTTP Error] code={http_err.code} body={err_body}")
+        print(f"[Sightengine {media_kind} HTTP Error] code={http_err.code} body={err_body[:1000]}")
         if STRICT_MODERATION:
             return False, "Moderation API error; upload blocked for safety."
         return True, f"Sightengine {media_kind} check error; skipped."
@@ -309,13 +325,13 @@ def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
 
 
 def check_link_or_text_safety(text_or_url: str) -> tuple[bool, str]:
-    """Block prohibited adult/nudity links or text, plus optional Sightengine text check."""
+    """Block prohibited adult/nudity/explicit links or text before QR generation."""
     cleaned = (text_or_url or "").strip()
-    lowered = cleaned.lower()
+    decoded_lower = urllib.parse.unquote(cleaned).lower()
 
     for pattern in BLOCKED_LINK_PATTERNS:
-        if re.search(pattern, lowered):
-            return False, "Link or text contains prohibited nudity/adult terms."
+        if re.search(pattern, decoded_lower):
+            return False, "Link or text contains prohibited nudity or explicit content terms."
 
     if SIGHTENGINE_TEXT_MODERATION and SIGHTENGINE_API_USER and SIGHTENGINE_API_SECRET:
         try:
