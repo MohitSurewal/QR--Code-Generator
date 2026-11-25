@@ -1,8 +1,11 @@
 import base64
+import hashlib
 import io
 import json
 import os
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 
 import cloudinary
@@ -50,6 +53,11 @@ cloudinary.config(
     api_secret=CLOUDINARY_API_SECRET,
     secure=True,
 )
+
+VIRUSTOTAL_API_KEY = (os.environ.get("VIRUSTOTAL_API_KEY") or "").strip()
+VT_BLOCK_ON_MALICIOUS = (
+    os.environ.get("VT_BLOCK_ON_MALICIOUS") or "true"
+).strip().lower() == "true"
 
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCK_SECONDS = 120
@@ -131,6 +139,64 @@ ALLOWED_DOC_EXTENSIONS = {
     ".ppt",
     ".pptx",
 }
+
+
+def scan_file_with_virustotal(file_storage) -> tuple[bool, str]:
+    """Check a file's SHA-256 hash against VirusTotal before uploading to Cloudinary."""
+    if not VIRUSTOTAL_API_KEY:
+        return True, "VirusTotal API key not configured; scan skipped."
+
+    try:
+        stream = file_storage.stream
+        stream.seek(0)
+        hasher = hashlib.sha256()
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            hasher.update(chunk)
+        stream.seek(0)
+        sha256_hex = hasher.hexdigest()
+
+        url = f"https://www.virustotal.com/api/v3/files/{sha256_hex}"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "x-apikey": VIRUSTOTAL_API_KEY,
+                "Accept": "application/json",
+            },
+            method="GET",
+        )
+
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        attrs = (payload.get("data") or {}).get("attributes") or {}
+        stats = attrs.get("last_analysis_stats") or {}
+        malicious = int(stats.get("malicious") or 0)
+        suspicious = int(stats.get("suspicious") or 0)
+
+        if malicious > 0 or suspicious > 0:
+            msg = (
+                f"File flagged by VirusTotal (malicious={malicious}, suspicious={suspicious}). "
+                "Upload blocked for safety."
+            )
+            if VT_BLOCK_ON_MALICIOUS:
+                return False, msg
+            return True, f"Warning: {msg}"
+
+        return True, "Clean on VirusTotal."
+
+    except urllib.error.HTTPError as http_err:
+        if http_err.code == 404:
+            return True, "Hash not found in VirusTotal database; allowed."
+        if http_err.code == 429:
+            return True, "VirusTotal rate limit reached; scan skipped."
+        print(f"[VirusTotal HTTP Error] status={http_err.code}: {http_err}")
+        return True, "VirusTotal check temporarily unavailable; scan skipped."
+    except Exception as exc:
+        print(f"[VirusTotal Scan Error] {exc}")
+        return True, "VirusTotal check error; scan skipped."
 
 
 def upload_media_to_cloudinary(file_storage, folder: str) -> dict:
@@ -372,6 +438,11 @@ def photo_qr():
             flash("Only image files are allowed on the Photo QR page.", "error")
         else:
             try:
+                is_safe, vt_msg = scan_file_with_virustotal(file)
+                if not is_safe:
+                    flash(vt_msg, "error")
+                    return render_template("photo_qr.html", qr_uri=qr_uri, media_url=media_url)
+
                 folder = CLOUDINARY_FOLDERS[("public", "photo")]
                 uploaded = upload_media_to_cloudinary(file, folder=folder)
                 media_url = uploaded["secure_url"]
@@ -407,6 +478,11 @@ def video_qr():
             flash("Only video files are allowed on the Video QR page.", "error")
         else:
             try:
+                is_safe, vt_msg = scan_file_with_virustotal(file)
+                if not is_safe:
+                    flash(vt_msg, "error")
+                    return render_template("video_qr.html", qr_uri=qr_uri, media_url=media_url)
+
                 folder = CLOUDINARY_FOLDERS[("public", "video")]
                 uploaded = upload_media_to_cloudinary(file, folder=folder)
                 media_url = uploaded["secure_url"]
@@ -448,6 +524,16 @@ def doc_qr():
                 )
             else:
                 try:
+                    is_safe, vt_msg = scan_file_with_virustotal(file)
+                    if not is_safe:
+                        flash(vt_msg, "error")
+                        return render_template(
+                            "doc_qr.html",
+                            qr_uri=qr_uri,
+                            doc_url=doc_url,
+                            doc_ext=doc_ext,
+                        )
+
                     folder = CLOUDINARY_FOLDERS[("public", "doc")]
                     uploaded = upload_doc_to_cloudinary(file, folder=folder)
                     doc_url = uploaded["secure_url"]
@@ -565,28 +651,32 @@ def admin_dashboard():
                 flash(f"Please select a {upload_type} file.", "error")
             else:
                 try:
-                    folder = CLOUDINARY_FOLDERS[("admin", upload_type)]
-                    uploaded = upload_media_to_cloudinary(file, folder=folder)
-                    result_url = uploaded["secure_url"]
-                    qr_uri = make_qr_data_uri(result_url)
-                    save_metadata_firestore(
-                        "admin_qr_items",
-                        {
-                            "source": "admin",
-                            "title": title,
-                            "type": upload_type,
-                            "folder": folder,
-                            "url": result_url,
-                            "cloudinary_public_id": uploaded["public_id"],
-                            "format": uploaded["format"],
-                            "bytes": uploaded["bytes"],
-                            "created_by": session.get("admin_user"),
-                        },
-                    )
-                    flash(
-                        f"{upload_type.capitalize()} uploaded to Cloudinary and metadata saved to Firestore.",
-                        "success",
-                    )
+                    is_safe, vt_msg = scan_file_with_virustotal(file)
+                    if not is_safe:
+                        flash(vt_msg, "error")
+                    else:
+                        folder = CLOUDINARY_FOLDERS[("admin", upload_type)]
+                        uploaded = upload_media_to_cloudinary(file, folder=folder)
+                        result_url = uploaded["secure_url"]
+                        qr_uri = make_qr_data_uri(result_url)
+                        save_metadata_firestore(
+                            "admin_qr_items",
+                            {
+                                "source": "admin",
+                                "title": title,
+                                "type": upload_type,
+                                "folder": folder,
+                                "url": result_url,
+                                "cloudinary_public_id": uploaded["public_id"],
+                                "format": uploaded["format"],
+                                "bytes": uploaded["bytes"],
+                                "created_by": session.get("admin_user"),
+                            },
+                        )
+                        flash(
+                            f"{upload_type.capitalize()} uploaded to Cloudinary and metadata saved to Firestore.",
+                            "success",
+                        )
                 except Exception as exc:
                     flash(f"Upload failed: {exc}", "error")
 
@@ -603,29 +693,33 @@ def admin_dashboard():
                     )
                 else:
                     try:
-                        folder = CLOUDINARY_FOLDERS[("admin", "doc")]
-                        uploaded = upload_doc_to_cloudinary(file, folder=folder)
-                        result_url = uploaded["secure_url"]
-                        doc_ext = ext.lstrip(".").upper()
-                        qr_uri = make_qr_data_uri(result_url)
-                        save_metadata_firestore(
-                            "admin_qr_items",
-                            {
-                                "source": "admin",
-                                "title": title,
-                                "type": "document",
-                                "folder": folder,
-                                "format": doc_ext,
-                                "url": result_url,
-                                "cloudinary_public_id": uploaded["public_id"],
-                                "bytes": uploaded["bytes"],
-                                "created_by": session.get("admin_user"),
-                            },
-                        )
-                        flash(
-                            "Document uploaded to Cloudinary and metadata saved to Firestore.",
-                            "success",
-                        )
+                        is_safe, vt_msg = scan_file_with_virustotal(file)
+                        if not is_safe:
+                            flash(vt_msg, "error")
+                        else:
+                            folder = CLOUDINARY_FOLDERS[("admin", "doc")]
+                            uploaded = upload_doc_to_cloudinary(file, folder=folder)
+                            result_url = uploaded["secure_url"]
+                            doc_ext = ext.lstrip(".").upper()
+                            qr_uri = make_qr_data_uri(result_url)
+                            save_metadata_firestore(
+                                "admin_qr_items",
+                                {
+                                    "source": "admin",
+                                    "title": title,
+                                    "type": "document",
+                                    "folder": folder,
+                                    "format": doc_ext,
+                                    "url": result_url,
+                                    "cloudinary_public_id": uploaded["public_id"],
+                                    "bytes": uploaded["bytes"],
+                                    "created_by": session.get("admin_user"),
+                                },
+                            )
+                            flash(
+                                "Document uploaded to Cloudinary and metadata saved to Firestore.",
+                                "success",
+                            )
                     except Exception as exc:
                         flash(f"Upload failed: {exc}", "error")
 
