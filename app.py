@@ -72,7 +72,7 @@ SIGHTENGINE_TEXT_MODERATION = (
 STRICT_MODERATION = (
     os.environ.get("STRICT_MODERATION") or "false"
 ).strip().lower() == "true"
-VIDEO_MAX_SAMPLE_FRAMES = int(os.environ.get("VIDEO_MAX_SAMPLE_FRAMES") or "6")
+VIDEO_MAX_SAMPLE_FRAMES = int(os.environ.get("VIDEO_MAX_SAMPLE_FRAMES") or "3")
 
 BLOCKED_LINK_PATTERNS = [
     r"(porn|xxx|nsfw|nude|nudity|sex|escort|onlyfans|camgirl|hentai|erotic|xvideos|xnxx|pornhub|redtube|xhamster|brazzers|chaturbate|stripchat)",
@@ -251,7 +251,7 @@ def _check_image_bytes_sightengine(
         method="POST",
     )
 
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with urllib.request.urlopen(req, timeout=12) as resp:
         raw_body = resp.read().decode("utf-8", errors="ignore")
         result = json.loads(raw_body)
 
@@ -273,21 +273,36 @@ def _check_image_bytes_sightengine(
     return True, "Clean"
 
 
-def _extract_video_sample_frames(video_bytes: bytes, ext: str = ".mp4") -> list[bytes]:
+def _resize_for_moderation(frame, max_width: int = 640):
+    h, w = frame.shape[:2]
+    if w > max_width and w > 0:
+        new_h = max(1, int(h * (max_width / float(w))))
+        return cv2.resize(frame, (max_width, new_h), interpolation=cv2.INTER_AREA)
+    return frame
+
+
+def _extract_video_sample_frames(file_storage, ext: str = ".mp4") -> list[bytes]:
     frames_jpeg: list[bytes] = []
     tmp_path = None
     cap = None
     try:
+        stream = file_storage.stream
+        stream.seek(0)
         with tempfile.NamedTemporaryFile(delete=False, suffix=ext or ".mp4") as tmp:
-            tmp.write(video_bytes)
+            while True:
+                chunk = stream.read(1024 * 1024)
+                if not chunk:
+                    break
+                tmp.write(chunk)
             tmp_path = tmp.name
+        stream.seek(0)
 
         cap = cv2.VideoCapture(tmp_path)
         if not cap.isOpened():
             return []
 
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-        count = max(1, min(VIDEO_MAX_SAMPLE_FRAMES, 10))
+        count = max(1, min(VIDEO_MAX_SAMPLE_FRAMES, 5))
 
         if total_frames > 0:
             indices = sorted({
@@ -295,14 +310,15 @@ def _extract_video_sample_frames(video_bytes: bytes, ext: str = ".mp4") -> list[
                 for i in range(count)
             })
         else:
-            indices = [0, 15, 30, 60, 90, 120][:count]
+            indices = [0, 30, 60][:count]
 
         for frame_idx in indices:
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
             ok, frame = cap.read()
             if not ok or frame is None:
                 continue
-            encoded_ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+            small_frame = _resize_for_moderation(frame, max_width=640)
+            encoded_ok, buf = cv2.imencode(".jpg", small_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
             if encoded_ok:
                 frames_jpeg.append(buf.tobytes())
 
@@ -326,14 +342,9 @@ def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
         return True, "Sightengine keys not configured; check skipped."
 
     try:
-        stream = file_storage.stream
-        stream.seek(0)
-        file_bytes = stream.read()
-        stream.seek(0)
-
         if media_kind == "video":
             ext = os.path.splitext((file_storage.filename or "").lower())[1] or ".mp4"
-            sample_frames = _extract_video_sample_frames(file_bytes, ext=ext)
+            sample_frames = _extract_video_sample_frames(file_storage, ext=ext)
             print(f"[Video Moderation] extracted {len(sample_frames)} sample frames")
 
             if not sample_frames:
@@ -353,8 +364,13 @@ def check_media_nudity(file_storage, media_kind: str) -> tuple[bool, str]:
 
             return True, "Clean"
 
+        stream = file_storage.stream
+        stream.seek(0)
+        image_bytes = stream.read()
+        stream.seek(0)
+
         return _check_image_bytes_sightengine(
-            file_bytes,
+            image_bytes,
             filename=file_storage.filename or "image.jpg",
             content_type=file_storage.mimetype or "image/jpeg",
             label="photo",
@@ -466,6 +482,7 @@ def upload_media_to_cloudinary(file_storage, folder: str) -> dict:
     if not cloudinary_is_configured():
         raise RuntimeError("Cloudinary environment variables are missing.")
 
+    file_storage.stream.seek(0)
     res = cloudinary.uploader.upload(
         file_storage,
         folder=folder,
@@ -486,6 +503,7 @@ def upload_doc_to_cloudinary(file_storage, folder: str) -> dict:
     if not cloudinary_is_configured():
         raise RuntimeError("Cloudinary environment variables are missing.")
 
+    file_storage.stream.seek(0)
     res = cloudinary.uploader.upload(
         file_storage,
         folder=folder,
@@ -1093,4 +1111,3 @@ def bad_request_or_csrf(err):
 
 if __name__ == "__main__":
     app.run(debug=os.environ.get("FLASK_ENV") != "production")
-    
